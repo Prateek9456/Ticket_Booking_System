@@ -47,6 +47,32 @@ router.get('/events', (req, res) => {
   res.json(events);
 });
 
+router.delete('/events/:id', (req, res) => {
+  const db = getDb();
+  const eventId = Number(req.params.id);
+
+  const event = db.prepare('SELECT id FROM events WHERE id = ? AND organiser_id = ?').get(eventId, req.user.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  const confirmedCount = db.prepare(`
+    SELECT COUNT(*) as count FROM bookings WHERE event_id = ? AND status = 'confirmed'
+  `).get(eventId).count;
+
+  if (confirmedCount > 0) {
+    return res.status(400).json({ error: 'Cannot delete event with confirmed bookings' });
+  }
+
+  try {
+    withTransaction(db, () => {
+      db.prepare('DELETE FROM bookings WHERE event_id = ?').run(eventId);
+      db.prepare('DELETE FROM events WHERE id = ?').run(eventId);
+    });
+    res.json({ message: 'Event deleted' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.get('/events/:id/summary', (req, res) => {
   const db = getDb();
   const event = db.prepare(`

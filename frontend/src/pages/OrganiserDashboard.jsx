@@ -51,6 +51,24 @@ export default function OrganiserDashboard() {
     }
   }
 
+  async function handleDelete(event) {
+    if (event.booking_count > 0) {
+      setError('Cannot delete an event with confirmed bookings');
+      return;
+    }
+    if (!window.confirm(`Delete "${event.title}"? This cannot be undone.`)) return;
+
+    setError('');
+    try {
+      await api.deleteEvent(event.id);
+      setMessage('Event deleted');
+      setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      if (summary?.event?.id === event.id) setSummary(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   const venue = venues.find((v) => v.id === Number(form.venueId));
 
   return (
@@ -135,7 +153,19 @@ export default function OrganiserDashboard() {
               <td>{e.venue_name}</td>
               <td>{e.booking_count}</td>
               <td>${e.revenue?.toFixed(2)}</td>
-              <td><button className="btn btn-secondary btn-sm" onClick={() => viewSummary(e.id)}>Summary</button></td>
+              <td>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => viewSummary(e.id)}>Summary</button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => handleDelete(e)}
+                    disabled={e.booking_count > 0}
+                    title={e.booking_count > 0 ? 'Cannot delete events with confirmed bookings' : 'Delete event'}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
