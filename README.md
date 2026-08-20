@@ -1,203 +1,75 @@
 # Ticket Booking System
 
-A full-stack ticket booking platform for movies and concerts with visual seat maps, seat hold TTL, waitlist auto-assignment, QR code tickets via email, and role-based access (Admin / Organiser / Customer).
+**Author:** Prateek Vashishtha  
+**Repository:** [https://github.com/Prateek9456/Ticket_Booking_System](https://github.com/Prateek9456/Ticket_Booking_System)
 
-## Live Demo
+A full-stack ticket booking platform for movies and concerts. Customers book seats from a visual map with real-time status, held seats auto-release after a configurable TTL, sold-out events support a category waitlist with automatic re-offer on cancellation, and confirmed bookings trigger a QR code ticket by email.
 
-> Deploy backend to [Render](https://render.com) and frontend to [Vercel](https://vercel.com) using the instructions below, then update this URL.
+---
 
-**Hosted URL:** _To be deployed — see [Deployment](#deployment)_
+## Live Application
+
+| Service  | URL |
+|----------|-----|
+| **Frontend** | [https://ticket-booking-system-red.vercel.app](https://ticket-booking-system-red.vercel.app) |
+| **Backend API** | [https://ticket-booking-system-pp6l.onrender.com/api](https://ticket-booking-system-pp6l.onrender.com/api) |
+| **Health Check** | [https://ticket-booking-system-pp6l.onrender.com/api/health](https://ticket-booking-system-pp6l.onrender.com/api/health) |
+
+**Deployment:** Frontend on [Vercel](https://vercel.com) · Backend on [Render](https://render.com)
+
+---
+
+## Demo Accounts
+
+| Role      | Email                   | Password      |
+|-----------|-------------------------|---------------|
+| Admin     | admin@ticketbooking.com | admin123      |
+| Organiser | organiser@demo.com      | organiser123  |
+| Customer  | customer@demo.com       | customer123   |
+
+---
 
 ## Tech Stack
 
-| Layer    | Technology                          |
-|----------|-------------------------------------|
-| Backend  | Node.js, Express, SQLite (node:sqlite) |
-| Frontend | React, Vite, React Router           |
-| Auth     | JWT + bcrypt                        |
-| Email    | Nodemailer (Ethereal / SMTP)        |
-| QR Code  | qrcode npm package                  |
-| Scheduler| node-cron (seat hold & offer expiry) |
+| Layer     | Technology |
+|-----------|------------|
+| Backend   | Node.js, Express, SQLite (`node:sqlite`) |
+| Frontend  | React, Vite, React Router |
+| Auth      | JWT + bcrypt |
+| Email     | Nodemailer (Ethereal / SMTP) |
+| QR Code   | `qrcode` npm package |
+| Scheduler | `node-cron` (seat hold and waitlist offer expiry) |
 
-## Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- npm
-
-### 1. Backend
-
-```bash
-cd backend
-cp .env.example .env
-# Edit .env with your JWT_SECRET and SMTP credentials
-npm install
-npm run seed    # Creates demo users, venue, and events
-npm start       # Runs on http://localhost:3001
-```
-
-### 2. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev     # Runs on http://localhost:5173
-```
-
-### Demo Accounts
-
-| Role      | Email                    | Password      |
-|-----------|--------------------------|---------------|
-| Admin     | admin@ticketbooking.com  | admin123      |
-| Organiser | organiser@demo.com       | organiser123  |
-| Customer  | customer@demo.com        | customer123   |
+---
 
 ## Features
 
-- **Admin**: Create venues with seat layout and categories (Premium, Standard, Economy)
-- **Organiser**: Register/login, create movie/concert events with per-category pricing, view booking summary and revenue
-- **Customer**: Browse/filter events, visual seat map with real-time status (available / held / booked)
-- **Seat Hold**: Configurable TTL (default 10 min); auto-release on abandonment via cron scheduler
-- **Concurrency**: SQLite transactions with conditional UPDATE prevent double-booking
-- **Waitlist**: Join waitlist per category when sold out; auto-offer on cancellation with time-limited link
-- **QR Ticket**: Booking confirmation email with QR code encoding booking reference
-- **Booking History**: View and cancel bookings
-
-## Environment Variables
-
-See `backend/.env.example`:
-
-| Variable                  | Description                          | Default              |
-|---------------------------|--------------------------------------|----------------------|
-| PORT                      | API server port                      | 3001                 |
-| JWT_SECRET                | Secret for JWT signing               | (required)           |
-| SEAT_HOLD_TTL_MINUTES     | Seat hold duration                   | 10                   |
-| WAITLIST_OFFER_TTL_MINUTES| Waitlist offer duration              | 15                   |
-| FRONTEND_URL              | Frontend URL for waitlist links      | http://localhost:5173|
-| SMTP_HOST/PORT/USER/PASS  | Email delivery credentials           | Ethereal test SMTP   |
-
-For testing email without a real SMTP server, create a free account at [Ethereal Email](https://ethereal.email) and paste credentials into `.env`.
-
-## API Documentation
-
-Base URL: `http://localhost:3001/api`
-
-### Authentication
-
-| Method | Endpoint           | Description                | Auth     |
-|--------|--------------------|----------------------------|----------|
-| POST   | /auth/register     | Register (customer/organiser)| No     |
-| POST   | /auth/login        | Login                      | No       |
-| GET    | /auth/me           | Current user               | Bearer   |
-
-### Events (Public)
-
-| Method | Endpoint           | Description                |
-|--------|--------------------|----------------------------|
-| GET    | /events            | List events (?type, ?search, ?date) |
-| GET    | /events/:id        | Event details with pricing |
-
-### Seats
-
-| Method | Endpoint                  | Description              | Auth   |
-|--------|---------------------------|--------------------------|--------|
-| GET    | /seats/:eventId/map       | Seat map with status     | No     |
-| POST   | /seats/:eventId/hold      | Hold seats               | Bearer |
-| POST   | /seats/:eventId/release   | Release held seats       | Bearer |
-
-### Bookings
-
-| Method | Endpoint              | Description               | Auth   |
-|--------|-----------------------|---------------------------|--------|
-| POST   | /bookings/confirm     | Confirm held seats        | Bearer |
-| GET    | /bookings/my          | Customer booking history  | Bearer |
-| POST   | /bookings/:id/cancel  | Cancel booking            | Bearer |
-| GET    | /bookings/verify/:ref | Verify booking by QR ref  | No     |
-
-### Waitlist
-
-| Method | Endpoint                        | Description            | Auth   |
-|--------|---------------------------------|------------------------|--------|
-| POST   | /waitlist/:eventId/join         | Join category waitlist | Bearer |
-| GET    | /waitlist/:eventId/my           | My waitlist entries    | Bearer |
-| GET    | /waitlist/offer/:token          | View waitlist offer    | Bearer |
-| POST   | /waitlist/offer/:token/accept   | Accept offer & hold seat| Bearer |
-
 ### Admin
-
-| Method | Endpoint        | Description     | Auth (admin) |
-|--------|-----------------|-----------------|--------------|
-| GET    | /admin/venues   | List venues     | Yes          |
-| POST   | /admin/venues   | Create venue    | Yes          |
-| GET    | /admin/venues/:id | Venue detail  | Yes          |
+- Create venues with row/column seat layout
+- Define seat categories (Premium, Standard, Economy) with colours
 
 ### Organiser
+- Register and log in
+- Create movie or concert events with venue, date, time, and per-category pricing
+- View booking summary and revenue per event
+- Delete events that have no confirmed bookings
 
-| Method | Endpoint                      | Description          | Auth (organiser) |
-|--------|-------------------------------|----------------------|------------------|
-| GET    | /organiser/venues             | List venues          | Yes              |
-| POST   | /organiser/events             | Create event         | Yes              |
-| GET    | /organiser/events             | My events            | Yes              |
-| GET    | /organiser/events/:id/summary | Booking summary    | Yes              |
+### Customer
+- Register and log in
+- Browse and filter events (type, search, date)
+- Visual seat map with real-time status (available / held / booked)
+- Hold selected seats with configurable TTL (default 10 minutes)
+- Confirm booking and receive email with QR code ticket
+- Join waitlist for a seat category when sold out
+- View booking history and cancel bookings
+- Accept time-limited waitlist offers via email link
 
-## Database Schema
+### System
+- Auto-release abandoned seat holds via cron scheduler
+- Concurrency-safe hold and booking using SQLite transactions
+- Waitlist auto-assignment on cancellation with cascading time-limited offers
 
-```
-users            — id, email, password_hash, name, role (admin|organiser|customer)
-venues           — id, name, rows, cols
-seat_categories  — id, venue_id, name, color
-venue_seats      — id, venue_id, row_num, col_num, category_id
-events           — id, organiser_id, venue_id, title, type, event_date, event_time
-event_pricing    — id, event_id, category_id, price
-seat_status      — id, event_id, seat_id, status, held_by, hold_expires_at, version
-bookings         — id, booking_ref, user_id, event_id, status, total_amount
-booking_seats    — id, booking_id, seat_id, price
-waitlist         — id, event_id, category_id, user_id, position, status, offer_token, offer_expires_at
-```
-
-Full SQL: `backend/src/db/schema.sql`
-
-## Seat Hold & Waitlist Logic
-
-### Seat Hold TTL
-
-1. Customer selects seats and clicks **Hold Seats**
-2. API runs `UPDATE seat_status SET status='held'` only where `status='available'` (atomic per seat)
-3. `hold_expires_at` is set to `now + SEAT_HOLD_TTL_MINUTES`
-4. A cron job runs every minute to release holds where `hold_expires_at < now`
-5. Seat map polls every 5 seconds on the frontend for real-time updates
-
-### Concurrency Prevention
-
-- Each hold/booking uses a SQLite transaction with conditional `UPDATE ... WHERE status = 'available'` (or `'held' AND held_by = user`)
-- If `changes === 0`, the operation fails — only one customer can hold/book a seat
-- A `version` column supports optimistic concurrency tracking
-
-### Waitlist Auto-Assignment
-
-1. Customer joins waitlist for a seat category when event is sold out
-2. On booking cancellation, system finds next `waiting` entry for that category
-3. Customer receives email with time-limited offer link (`offer_expires_at`)
-4. Accepting the offer holds an available seat in that category
-5. If offer expires, cron marks it `expired` and offers to the next person in queue
-
-See `docs/SYSTEM_DESIGN.md` for the full 800-word system design write-up.
-
-## Deployment
-
-### Backend (Render)
-
-1. Create a new **Web Service** pointing to `/backend`
-2. Build: `npm install && npm run seed`
-3. Start: `npm start`
-4. Set environment variables from `.env.example`
-
-### Frontend (Vercel)
-
-1. Import repo, set root to `/frontend`
-2. Build: `npm run build`
-3. Set `VITE_API_URL` or configure Vercel rewrites to proxy `/api` to backend URL
+---
 
 ## Project Structure
 
@@ -205,25 +77,263 @@ See `docs/SYSTEM_DESIGN.md` for the full 800-word system design write-up.
 Ticket_Booking_System/
 ├── backend/
 │   ├── src/
-│   │   ├── db/           # Schema, database init, seed
-│   │   ├── middleware/   # JWT auth
-│   │   ├── routes/       # API endpoints
-│   │   ├── services/     # Seat hold, email, QR
-│   │   ├── schedulers/   # Cron jobs
+│   │   ├── db/              # Schema, database init, seed
+│   │   ├── middleware/      # JWT authentication
+│   │   ├── routes/          # REST API endpoints
+│   │   ├── services/        # Seat hold, email, QR code
+│   │   ├── schedulers/      # Cron jobs for expiry
 │   │   └── server.js
 │   ├── .env.example
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── components/   # SeatMap, Navbar, EventCard
-│   │   ├── pages/        # All UI pages
-│   │   ├── context/      # Auth context
+│   │   ├── components/      # SeatMap, Navbar, EventCard
+│   │   ├── pages/           # UI pages
+│   │   ├── context/         # Auth context
 │   │   └── api.js
+│   ├── vercel.json
 │   └── package.json
 ├── docs/
-│   └── SYSTEM_DESIGN.md
+│   └── SYSTEM_DESIGN.md     # 800-word system design write-up
+├── render.yaml              # Render deployment blueprint
 └── README.md
 ```
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Node.js 18 or later
+- npm
+
+### 1. Backend
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+Edit `.env` with your `JWT_SECRET` and SMTP credentials, then:
+
+```bash
+npm install
+npm run seed
+npm start
+```
+
+API runs at `http://localhost:3001`
+
+### 2. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+App runs at `http://localhost:5173`
+
+The Vite dev server proxies `/api` requests to `http://localhost:3001`.
+
+---
+
+## Environment Variables
+
+### Backend (`backend/.env.example`)
+
+| Variable                   | Description                         | Default                |
+|----------------------------|-------------------------------------|------------------------|
+| `PORT`                     | API server port                     | `3001`                 |
+| `JWT_SECRET`               | Secret for JWT signing              | *(required)*           |
+| `SEAT_HOLD_TTL_MINUTES`    | Seat hold duration in minutes       | `10`                   |
+| `WAITLIST_OFFER_TTL_MINUTES` | Waitlist offer duration in minutes | `15`                   |
+| `FRONTEND_URL`             | Frontend URL for waitlist links     | `http://localhost:5173`|
+| `SMTP_HOST`                | SMTP server host                    | Ethereal test SMTP     |
+| `SMTP_PORT`                | SMTP port                           | `587`                  |
+| `SMTP_USER`                | SMTP username                       | —                      |
+| `SMTP_PASS`                | SMTP password                       | —                      |
+| `SMTP_FROM`                | Sender address                      | —                      |
+
+For testing email without a real SMTP server, create a free account at [Ethereal Email](https://ethereal.email) and paste credentials into `.env`.
+
+### Frontend (production on Vercel)
+
+| Variable        | Value |
+|-----------------|-------|
+| `VITE_API_URL`  | `https://ticket-booking-system-pp6l.onrender.com/api` |
+
+### Backend (production on Render)
+
+| Variable        | Value |
+|-----------------|-------|
+| `FRONTEND_URL`  | `https://ticket-booking-system-red.vercel.app` |
+| `JWT_SECRET`    | A long random secret string |
+| `SEAT_HOLD_TTL_MINUTES` | `10` |
+| `WAITLIST_OFFER_TTL_MINUTES` | `15` |
+| SMTP variables  | Ethereal or your SMTP provider |
+
+---
+
+## API Documentation
+
+**Local base URL:** `http://localhost:3001/api`  
+**Production base URL:** `https://ticket-booking-system-pp6l.onrender.com/api`
+
+### Authentication
+
+| Method | Endpoint         | Description                  | Auth   |
+|--------|------------------|------------------------------|--------|
+| POST   | `/auth/register` | Register (customer/organiser) | No     |
+| POST   | `/auth/login`    | Login                        | No     |
+| GET    | `/auth/me`       | Current user profile         | Bearer |
+
+### Events (Public)
+
+| Method | Endpoint       | Description |
+|--------|----------------|-------------|
+| GET    | `/events`      | List events (`?type`, `?search`, `?date`) |
+| GET    | `/events/:id`  | Event details with pricing |
+
+### Seats
+
+| Method | Endpoint                    | Description           | Auth   |
+|--------|-----------------------------|-----------------------|--------|
+| GET    | `/seats/:eventId/map`       | Seat map with status  | No     |
+| POST   | `/seats/:eventId/hold`      | Hold seats            | Bearer |
+| POST   | `/seats/:eventId/release`   | Release held seats    | Bearer |
+
+### Bookings
+
+| Method | Endpoint                 | Description              | Auth   |
+|--------|--------------------------|--------------------------|--------|
+| POST   | `/bookings/confirm`      | Confirm held seats       | Bearer |
+| GET    | `/bookings/my`           | Customer booking history | Bearer |
+| POST   | `/bookings/:id/cancel`   | Cancel booking           | Bearer |
+| GET    | `/bookings/verify/:ref`  | Verify booking by QR ref | No     |
+
+### Waitlist
+
+| Method | Endpoint                          | Description              | Auth   |
+|--------|-----------------------------------|--------------------------|--------|
+| POST   | `/waitlist/:eventId/join`         | Join category waitlist   | Bearer |
+| GET    | `/waitlist/:eventId/my`           | My waitlist entries      | Bearer |
+| GET    | `/waitlist/offer/:token`          | View waitlist offer      | Bearer |
+| POST   | `/waitlist/offer/:token/accept`   | Accept offer and hold seat | Bearer |
+
+### Admin
+
+| Method | Endpoint            | Description  | Auth  |
+|--------|---------------------|--------------|-------|
+| GET    | `/admin/venues`     | List venues  | Admin |
+| POST   | `/admin/venues`     | Create venue | Admin |
+| GET    | `/admin/venues/:id` | Venue detail | Admin |
+
+### Organiser
+
+| Method | Endpoint                        | Description       | Auth      |
+|--------|---------------------------------|-------------------|-----------|
+| GET    | `/organiser/venues`             | List venues       | Organiser |
+| POST   | `/organiser/events`             | Create event      | Organiser |
+| GET    | `/organiser/events`             | My events         | Organiser |
+| GET    | `/organiser/events/:id/summary` | Booking summary   | Organiser |
+| DELETE | `/organiser/events/:id`         | Delete event      | Organiser |
+
+---
+
+## Database Schema
+
+| Table            | Key Columns |
+|------------------|-------------|
+| `users`          | id, email, password_hash, name, role (admin \| organiser \| customer) |
+| `venues`         | id, name, rows, cols |
+| `seat_categories`| id, venue_id, name, color |
+| `venue_seats`    | id, venue_id, row_num, col_num, category_id |
+| `events`         | id, organiser_id, venue_id, title, type, event_date, event_time |
+| `event_pricing`  | id, event_id, category_id, price |
+| `seat_status`    | id, event_id, seat_id, status, held_by, hold_expires_at, version |
+| `bookings`       | id, booking_ref, user_id, event_id, status, total_amount |
+| `booking_seats`  | id, booking_id, seat_id, price |
+| `waitlist`       | id, event_id, category_id, user_id, position, status, offer_token, offer_expires_at |
+
+Full SQL definition: [`backend/src/db/schema.sql`](backend/src/db/schema.sql)
+
+---
+
+## Seat Hold and Waitlist Logic
+
+### Seat Hold TTL
+
+1. Customer selects seats and clicks **Hold Seats**.
+2. The API runs `UPDATE seat_status SET status='held'` only where `status='available'` (atomic per seat).
+3. `hold_expires_at` is set to `now + SEAT_HOLD_TTL_MINUTES`.
+4. A cron job runs every minute to release holds where `hold_expires_at < now`.
+5. The frontend polls the seat map every 5 seconds for near-real-time updates.
+
+### Concurrency Prevention
+
+- Each hold and booking runs inside a SQLite transaction with a conditional `UPDATE ... WHERE status = 'available'` (or `'held' AND held_by = user`).
+- If `changes === 0`, the operation fails — only one customer can hold or book a seat.
+- A `version` column on `seat_status` tracks mutations for audit and optimistic locking.
+
+### Waitlist Auto-Assignment
+
+1. Customer joins the waitlist for a seat category when the event is sold out.
+2. On booking cancellation, the system finds the next `waiting` entry for that category.
+3. The customer receives an email with a time-limited offer link (`offer_expires_at`).
+4. Accepting the offer holds an available seat in that category.
+5. If the offer expires, the cron job marks it `expired` and offers to the next person in the queue.
+
+For the full system design write-up (800 words), see [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_DESIGN.md).
+
+---
+
+## Deployment
+
+### Backend — Render
+
+1. Create a **Web Service** with root directory `backend`.
+2. **Instance type:** Free
+3. **Build command:** `npm install && npm run seed`
+4. **Start command:** `npm start`
+5. Set environment variables from the table above.
+
+Alternatively, use the included `render.yaml` blueprint (`plan: free`).
+
+### Frontend — Vercel
+
+1. Import the GitHub repository.
+2. Set root directory to `frontend`.
+3. **Build command:** `npm run build`
+4. Set `VITE_API_URL` to your Render API URL (see Environment Variables above).
+
+---
+
+## Submission Notes
+
+This project follows the assignment submission guidelines:
+
+- **GitHub repository:** public, `main` branch, source code only
+- **Excluded from repo:** `node_modules/`, `.env`, `dist/`, database files, editor config
+- **Deliverables included:**
+  1. Complete source code in this repository
+  2. This README (setup, `.env.example`, API docs, DB schema, seat hold/waitlist logic)
+  3. Hosted application URL (Vercel + Render)
+  4. System design write-up in `docs/SYSTEM_DESIGN.md`
+
+### Creating a Zip Archive (if required)
+
+From the project root, zip the source without dependencies or secrets:
+
+```powershell
+# Windows PowerShell — run from parent folder of Ticket_Booking_System
+Compress-Archive -Path Ticket_Booking_System\backend, Ticket_Booking_System\frontend, Ticket_Booking_System\docs, Ticket_Booking_System\README.md, Ticket_Booking_System\render.yaml, Ticket_Booking_System\.gitignore -DestinationPath Ticket_Booking_System.zip -Force
+```
+
+Ensure the zip does **not** contain `node_modules/`, `.env`, `dist/`, or `*.db` files.
+
+---
 
 ## License
 
