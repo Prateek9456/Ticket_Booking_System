@@ -38,6 +38,9 @@ router.post('/login', (req, res) => {
 
 router.get('/me', authenticate, (req, res) => {
   const user = getDb().prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(req.user.id);
+  if (!user) {
+    return res.status(401).json({ error: 'Session expired. Please log in again.' });
+  }
   res.json(user);
 });
 

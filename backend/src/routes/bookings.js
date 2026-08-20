@@ -21,13 +21,21 @@ router.post('/confirm', authenticate, async (req, res) => {
   try {
     const db = getDb();
     releaseExpiredHolds(db);
-    const user = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
+
+    const dbUser = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(req.user.id);
+    if (!dbUser) {
+      return res.status(401).json({ error: 'Session expired. Please log out and log in again.' });
+    }
+
+    const userEmail = dbUser.email || req.user.email;
+    const userName = dbUser.name || req.user.name;
+
     const bookingData = confirmBooking(db, {
       eventId,
       seatIds,
       userId: req.user.id,
-      userEmail: user.email,
-      userName: user.name,
+      userEmail,
+      userName,
     });
 
     const qrBuffer = await generateBookingQR(bookingData.bookingRef);
@@ -39,8 +47,8 @@ router.post('/confirm', authenticate, async (req, res) => {
     if (isSmtpConfigured()) {
       try {
         const info = await sendBookingConfirmation({
-          to: user.email,
-          name: user.name,
+          to: userEmail,
+          name: userName,
           bookingRef: bookingData.bookingRef,
           eventTitle: bookingData.event.title,
           eventDate: bookingData.event.event_date,

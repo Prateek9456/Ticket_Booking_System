@@ -66,6 +66,7 @@ export default function EventDetail() {
   }
 
   async function handleConfirm() {
+    if (!user) { navigate('/login'); return; }
     setLoading(true);
     setError('');
     setBookingResult(null);
@@ -78,6 +79,10 @@ export default function EventDetail() {
       setHeldSeats([]);
       loadSeatMap();
     } catch (err) {
+      if (err.message.includes('Session expired') || err.message.includes('Authentication')) {
+        localStorage.removeItem('token');
+        navigate('/login');
+      }
       setError(err.message);
     } finally {
       setLoading(false);
