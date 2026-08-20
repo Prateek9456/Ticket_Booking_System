@@ -2,6 +2,7 @@ services:
   - type: web
     name: ticket-booking-api
     env: node
+    plan: free
     rootDir: backend
     buildCommand: npm install && npm run seed
     startCommand: npm start
