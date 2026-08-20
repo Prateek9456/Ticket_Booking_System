@@ -1,9 +1,10 @@
 const express = require('express');
 const { getDb } = require('../db/database');
 const { authenticate } = require('../middleware/auth');
+const { generateBookingQR } = require('../services/qr');
+const { isSmtpConfigured, sendBookingConfirmation } = require('../services/email');
 const {
   confirmBooking,
-  sendConfirmationEmail,
   cancelBooking,
   processWaitlistAfterCancellation,
   releaseExpiredHolds,
@@ -29,16 +30,47 @@ router.post('/confirm', authenticate, async (req, res) => {
       userName: user.name,
     });
 
-    try {
-      await sendConfirmationEmail(bookingData);
-    } catch (emailErr) {
-      console.error('Email send failed:', emailErr.message);
+    const qrBuffer = await generateBookingQR(bookingData.bookingRef);
+    const seats = bookingData.seatDetails
+      .map((s) => `Row ${s.row} Col ${s.col} (${s.category})`)
+      .join(', ');
+
+    let email = { sent: false };
+    if (isSmtpConfigured()) {
+      try {
+        const info = await sendBookingConfirmation({
+          to: user.email,
+          name: user.name,
+          bookingRef: bookingData.bookingRef,
+          eventTitle: bookingData.event.title,
+          eventDate: bookingData.event.event_date,
+          eventTime: bookingData.event.event_time,
+          seats,
+          qrBuffer,
+        });
+        email = {
+          sent: true,
+          previewUrl: info.previewUrl,
+          usingTestInbox: Boolean(info.previewUrl),
+          sentTo: info.sentTo,
+        };
+      } catch (emailErr) {
+        console.error('Email send failed:', emailErr.message);
+        email = { sent: false, error: emailErr.message };
+      }
+    } else {
+      email = {
+        sent: false,
+        error: 'SMTP is not configured on the server. Add SMTP environment variables on Render.',
+      };
     }
 
     res.status(201).json({
       bookingRef: bookingData.bookingRef,
       totalAmount: bookingData.totalAmount,
       seats: bookingData.seatDetails,
+      qrCode: `data:image/png;base64,${qrBuffer.toString('base64')}`,
+      email,
     });
   } catch (err) {
     res.status(409).json({ error: err.message });

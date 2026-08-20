@@ -18,6 +18,7 @@ export default function EventDetail() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [waitlistEntries, setWaitlistEntries] = useState([]);
+  const [bookingResult, setBookingResult] = useState(null);
 
   const loadSeatMap = useCallback(() => {
     api.getSeatMap(id).then(setSeatData).catch(() => {});
@@ -67,9 +68,11 @@ export default function EventDetail() {
   async function handleConfirm() {
     setLoading(true);
     setError('');
+    setBookingResult(null);
     try {
       const seats = heldSeats.length ? heldSeats : selected;
       const result = await api.confirmBooking(Number(id), seats);
+      setBookingResult(result);
       setMessage(`Booking confirmed! Reference: ${result.bookingRef}`);
       setSelected([]);
       setHeldSeats([]);
@@ -108,6 +111,39 @@ export default function EventDetail() {
 
       {error && <div className="alert alert-error">{error}</div>}
       {message && <div className="alert alert-success">{message}</div>}
+
+      {bookingResult && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <h3>Your Ticket</h3>
+          <p><strong>Reference:</strong> {bookingResult.bookingRef}</p>
+          {bookingResult.email?.sentTo && (
+            <p><strong>Email sent to:</strong> {bookingResult.email.sentTo}</p>
+          )}
+          {bookingResult.qrCode && (
+            <img
+              src={bookingResult.qrCode}
+              alt={`QR code for booking ${bookingResult.bookingRef}`}
+              style={{ display: 'block', margin: '1rem 0', width: 200, height: 200 }}
+            />
+          )}
+          {bookingResult.email?.sent && !bookingResult.email?.usingTestInbox && (
+            <p>Confirmation email with QR ticket sent to <strong>{bookingResult.email.sentTo}</strong>. Check spam/promotions if you do not see it.</p>
+          )}
+          {bookingResult.email?.sent && bookingResult.email?.previewUrl && (
+            <p>
+              Test SMTP captured the email (Ethereal does not deliver to real inboxes).{' '}
+              <a href={bookingResult.email.previewUrl} target="_blank" rel="noreferrer">
+                View test email and QR
+              </a>
+            </p>
+          )}
+          {!bookingResult.email?.sent && (
+            <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>
+              Email not sent: {bookingResult.email?.error || 'Unknown error'}. Save the QR code above for venue entry.
+            </div>
+          )}
+        </div>
+      )}
 
       {seatData && !soldOut && (
         <>
