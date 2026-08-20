@@ -23,9 +23,7 @@ function initEventSeats(db, eventId, venueId) {
   const insert = db.prepare(
     "INSERT OR IGNORE INTO seat_status (event_id, seat_id, status) VALUES (?, ?, 'available')"
   );
-  withTransaction(db, () => {
-    for (const s of seats) insert.run(eventId, s.id);
-  });
+  for (const s of seats) insert.run(eventId, s.id);
 }
 
 function releaseExpiredHolds(db) {
