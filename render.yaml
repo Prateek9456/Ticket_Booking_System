@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ticket-booking-api
+    env: node
+    rootDir: backend
+    buildCommand: npm install && npm run seed
+    startCommand: npm start
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: SEAT_HOLD_TTL_MINUTES
+        value: "10"
+      - key: WAITLIST_OFFER_TTL_MINUTES
+        value: "15"

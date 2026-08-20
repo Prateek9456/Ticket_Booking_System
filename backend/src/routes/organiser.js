@@ -1,0 +1,86 @@
+const express = require('express');
+const { getDb, withTransaction } = require('../db/database');
+const { authenticate, authorize } = require('../middleware/auth');
+const { initEventSeats } = require('../services/seatHold');
+
+const router = express.Router();
+
+router.use(authenticate, authorize('organiser'));
+
+router.post('/events', (req, res) => {
+  const { title, type, venueId, eventDate, eventTime, description, pricing } = req.body;
+  if (!title || !type || !venueId || !eventDate || !eventTime || !pricing?.length) {
+    return res.status(400).json({ error: 'All event fields and pricing are required' });
+  }
+
+  const db = getDb();
+  try {
+    const eventId = withTransaction(db, () => {
+      const event = db.prepare(`
+        INSERT INTO events (organiser_id, venue_id, title, type, event_date, event_time, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(req.user.id, venueId, title, type, eventDate, eventTime, description || '');
+
+      const priceStmt = db.prepare('INSERT INTO event_pricing (event_id, category_id, price) VALUES (?, ?, ?)');
+      for (const p of pricing) {
+        priceStmt.run(event.lastInsertRowid, p.categoryId, p.price);
+      }
+
+      initEventSeats(db, event.lastInsertRowid, venueId);
+      return event.lastInsertRowid;
+    });
+    res.status(201).json({ id: eventId, message: 'Event created' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/events', (req, res) => {
+  const events = getDb().prepare(`
+    SELECT e.*, v.name as venue_name,
+      (SELECT COUNT(*) FROM bookings b WHERE b.event_id = e.id AND b.status = 'confirmed') as booking_count,
+      (SELECT COALESCE(SUM(b.total_amount), 0) FROM bookings b WHERE b.event_id = e.id AND b.status = 'confirmed') as revenue
+    FROM events e JOIN venues v ON v.id = e.venue_id
+    WHERE e.organiser_id = ?
+    ORDER BY e.event_date DESC
+  `).all(req.user.id);
+  res.json(events);
+});
+
+router.get('/events/:id/summary', (req, res) => {
+  const db = getDb();
+  const event = db.prepare(`
+    SELECT e.*, v.name as venue_name FROM events e
+    JOIN venues v ON v.id = e.venue_id
+    WHERE e.id = ? AND e.organiser_id = ?
+  `).get(req.params.id, req.user.id);
+
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  const bookings = db.prepare(`
+    SELECT b.*, u.name as customer_name, u.email as customer_email
+    FROM bookings b JOIN users u ON u.id = b.user_id
+    WHERE b.event_id = ? AND b.status = 'confirmed'
+    ORDER BY b.created_at DESC
+  `).all(event.id);
+
+  const seatStats = db.prepare(`
+    SELECT status, COUNT(*) as count FROM seat_status WHERE event_id = ? GROUP BY status
+  `).all(event.id);
+
+  const revenue = bookings.reduce((sum, b) => sum + b.total_amount, 0);
+
+  res.json({ event, bookings, seatStats, revenue, totalBookings: bookings.length });
+});
+
+router.get('/venues', (req, res) => {
+  const venues = getDb().prepare('SELECT id, name, rows, cols FROM venues ORDER BY name').all();
+  const db = getDb();
+  const result = venues.map((v) => ({
+    ...v,
+    categories: db.prepare('SELECT id, name, color FROM seat_categories WHERE venue_id = ?').all(v.id),
+  }));
+  res.json(result);
+});
+
+module.exports = router;

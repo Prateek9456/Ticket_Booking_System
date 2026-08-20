@@ -1,0 +1,109 @@
+-- Users with role-based access
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('admin', 'organiser', 'customer')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Venues managed by admin
+CREATE TABLE IF NOT EXISTS venues (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  rows INTEGER NOT NULL,
+  cols INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Seat categories per venue (Premium, Standard, etc.)
+CREATE TABLE IF NOT EXISTS seat_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  venue_id INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#4CAF50',
+  UNIQUE(venue_id, name)
+);
+
+-- Individual seats in a venue grid
+CREATE TABLE IF NOT EXISTS venue_seats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  venue_id INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  row_num INTEGER NOT NULL,
+  col_num INTEGER NOT NULL,
+  category_id INTEGER NOT NULL REFERENCES seat_categories(id),
+  UNIQUE(venue_id, row_num, col_num)
+);
+
+-- Events created by organisers
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  organiser_id INTEGER NOT NULL REFERENCES users(id),
+  venue_id INTEGER NOT NULL REFERENCES venues(id),
+  title TEXT NOT NULL,
+  type TEXT NOT NULL CHECK(type IN ('movie', 'concert')),
+  event_date TEXT NOT NULL,
+  event_time TEXT NOT NULL,
+  description TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Per-category pricing for each event
+CREATE TABLE IF NOT EXISTS event_pricing (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  category_id INTEGER NOT NULL REFERENCES seat_categories(id),
+  price REAL NOT NULL,
+  UNIQUE(event_id, category_id)
+);
+
+-- Per-show seat status (available / held / booked)
+CREATE TABLE IF NOT EXISTS seat_status (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  seat_id INTEGER NOT NULL REFERENCES venue_seats(id),
+  status TEXT NOT NULL DEFAULT 'available' CHECK(status IN ('available', 'held', 'booked')),
+  held_by INTEGER REFERENCES users(id),
+  hold_expires_at TEXT,
+  version INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(event_id, seat_id)
+);
+
+-- Confirmed bookings
+CREATE TABLE IF NOT EXISTS bookings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_ref TEXT UNIQUE NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  event_id INTEGER NOT NULL REFERENCES events(id),
+  status TEXT NOT NULL DEFAULT 'confirmed' CHECK(status IN ('confirmed', 'cancelled')),
+  total_amount REAL NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Seats included in a booking
+CREATE TABLE IF NOT EXISTS booking_seats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  seat_id INTEGER NOT NULL REFERENCES venue_seats(id),
+  price REAL NOT NULL
+);
+
+-- Waitlist queue per event per category
+CREATE TABLE IF NOT EXISTS waitlist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  category_id INTEGER NOT NULL REFERENCES seat_categories(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  position INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'waiting' CHECK(status IN ('waiting', 'offered', 'completed', 'expired', 'declined')),
+  offer_token TEXT,
+  offer_expires_at TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(event_id, category_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_seat_status_event ON seat_status(event_id);
+CREATE INDEX IF NOT EXISTS idx_seat_status_hold_expires ON seat_status(hold_expires_at);
+CREATE INDEX IF NOT EXISTS idx_waitlist_event_category ON waitlist(event_id, category_id, position);
+CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
