@@ -2,7 +2,7 @@ const express = require('express');
 const { getDb } = require('../db/database');
 const { authenticate } = require('../middleware/auth');
 const { generateBookingQR } = require('../services/qr');
-const { isSmtpConfigured, sendBookingConfirmation } = require('../services/email');
+const { isEmailConfigured, sendBookingConfirmation } = require('../services/email');
 const {
   confirmBooking,
   cancelBooking,
@@ -44,7 +44,7 @@ router.post('/confirm', authenticate, async (req, res) => {
       .join(', ');
 
     let email = { sent: false };
-    if (isSmtpConfigured()) {
+    if (isEmailConfigured()) {
       try {
         const info = await sendBookingConfirmation({
           to: userEmail,
@@ -69,7 +69,7 @@ router.post('/confirm', authenticate, async (req, res) => {
     } else {
       email = {
         sent: false,
-        error: 'SMTP is not configured on the server. Add SMTP environment variables on Render.',
+        error: 'Email is not configured on the server. Add RESEND_API_KEY or SMTP environment variables on Render.',
         sentTo: userEmail,
       };
     }
@@ -136,8 +136,8 @@ router.post('/:id/resend-email', authenticate, async (req, res) => {
   `).get(Number(req.params.id), req.user.id);
 
   if (!booking) return res.status(404).json({ error: 'Booking not found' });
-  if (!isSmtpConfigured()) {
-    return res.status(503).json({ error: 'SMTP is not configured on the server.' });
+  if (!isEmailConfigured()) {
+    return res.status(503).json({ error: 'Email is not configured on the server.' });
   }
 
   const seatRows = db.prepare(`

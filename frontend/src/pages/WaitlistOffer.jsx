@@ -10,6 +10,7 @@ export default function WaitlistOffer() {
   const [offer, setOffer] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [bookingResult, setBookingResult] = useState(null);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -23,8 +24,8 @@ export default function WaitlistOffer() {
       const result = await api.acceptWaitlistOffer(token);
       setMessage('Seat held! Complete your booking now.');
       const booking = await api.confirmBooking(result.eventId, result.seatIds);
+      setBookingResult(booking);
       setMessage(`Booking confirmed! Reference: ${booking.bookingRef}`);
-      setTimeout(() => navigate('/bookings'), 2000);
     } catch (err) {
       setError(err.message);
     }
@@ -41,9 +42,37 @@ export default function WaitlistOffer() {
         <p>{offer.event_date} at {offer.event_time}</p>
         <p>Offer expires: <strong>{new Date(offer.offer_expires_at).toLocaleString()}</strong></p>
         {message && <div className="alert alert-success">{message}</div>}
-        <button className="btn btn-primary" onClick={handleAccept} style={{ width: '100%', marginTop: '1rem' }}>
-          Accept & Book Now
-        </button>
+        {bookingResult && (
+          <div style={{ marginTop: '1rem' }}>
+            {bookingResult.qrCode && (
+              <img
+                src={bookingResult.qrCode}
+                alt={`QR code for booking ${bookingResult.bookingRef}`}
+                style={{ display: 'block', margin: '0 auto 1rem', width: 200, height: 200 }}
+              />
+            )}
+            {bookingResult.email?.previewUrl && (
+              <p style={{ textAlign: 'center' }}>
+                <a href={bookingResult.email.previewUrl} target="_blank" rel="noreferrer">
+                  View test email
+                </a>
+              </p>
+            )}
+            {!bookingResult.email?.sent && (
+              <div className="alert alert-error">
+                Email not sent: {bookingResult.email?.error || 'Unknown error'}
+              </div>
+            )}
+            <button className="btn btn-secondary" onClick={() => navigate('/bookings')} style={{ width: '100%', marginTop: '0.5rem' }}>
+              View My Bookings
+            </button>
+          </div>
+        )}
+        {!bookingResult && (
+          <button className="btn btn-primary" onClick={handleAccept} style={{ width: '100%', marginTop: '1rem' }}>
+            Accept & Book Now
+          </button>
+        )}
       </div>
     </div>
   );

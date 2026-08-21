@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/database');
 const { authenticate } = require('../middleware/auth');
+const { isEmailConfigured, sendTestEmail } = require('../services/email');
 
 const router = express.Router();
 
@@ -42,6 +43,30 @@ router.get('/me', authenticate, (req, res) => {
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
   res.json(user);
+});
+
+router.post('/test-email', authenticate, async (req, res) => {
+  const user = getDb().prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
+  if (!user) {
+    return res.status(401).json({ error: 'Session expired. Please log in again.' });
+  }
+
+  if (!isEmailConfigured()) {
+    return res.status(503).json({ error: 'Email is not configured on the server.' });
+  }
+
+  try {
+    const info = await sendTestEmail(user.email, user.name);
+    res.json({
+      message: 'Test email sent',
+      sentTo: info.sentTo,
+      accepted: info.accepted,
+      previewUrl: info.previewUrl || null,
+      provider: info.provider || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

@@ -30,7 +30,7 @@ export default function Bookings() {
         setEmailLinks((prev) => ({ ...prev, [id]: result.previewUrl }));
         setMessage(`Test email captured for ${result.sentTo}. Open the Ethereal link below.`);
       } else {
-        setMessage(`Email sent to ${result.sentTo}`);
+        setMessage(`Email sent to ${result.sentTo}. Check your inbox (and spam folder).`);
       }
     } catch (err) {
       setError(err.message);

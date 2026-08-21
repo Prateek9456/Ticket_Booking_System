@@ -2,8 +2,39 @@ const nodemailer = require('nodemailer');
 
 let transporter = null;
 
+const RENDER_SMTP_BLOCK_HINT =
+  'Render free tier blocks outbound SMTP (ports 587/465). Use Resend (RESEND_API_KEY) or upgrade Render to a paid plan.';
+
+function isResendConfigured() {
+  return Boolean(process.env.RESEND_API_KEY?.trim());
+}
+
 function isSmtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+function isEmailConfigured() {
+  return isResendConfigured() || isSmtpConfigured();
+}
+
+function getFromAddress() {
+  const resendFrom = process.env.RESEND_FROM?.trim();
+  if (resendFrom) return resendFrom;
+
+  const user = process.env.SMTP_USER?.trim();
+  const from = process.env.SMTP_FROM?.trim();
+
+  if (from && from.includes('<')) return from;
+  if (from && from.includes('@')) return `"Ticket Booking" <${from}>`;
+  if (user) return `"Ticket Booking" <${user}>`;
+  return 'Ticket Booking <onboarding@resend.dev>';
+}
+
+function getAuthCredentials() {
+  return {
+    user: process.env.SMTP_USER.trim(),
+    pass: process.env.SMTP_PASS.replace(/\s/g, ''),
+  };
 }
 
 function getTransporter() {
@@ -13,66 +44,156 @@ function getTransporter() {
 
   if (transporter) return transporter;
 
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true',
-    requireTLS: Number(process.env.SMTP_PORT) !== 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    tls: {
-      minVersion: 'TLSv1.2',
-    },
-  });
+  const auth = getAuthCredentials();
+  const host = process.env.SMTP_HOST.trim().toLowerCase();
+
+  if (host.includes('gmail.com')) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
+    });
+  } else {
+    const port = Number(process.env.SMTP_PORT) || 587;
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port,
+      secure: process.env.SMTP_SECURE === 'true' || port === 465,
+      auth,
+      tls: { minVersion: 'TLSv1.2' },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
+    });
+  }
 
   return transporter;
 }
 
-async function sendBookingConfirmation({ to, name, bookingRef, eventTitle, eventDate, eventTime, seats, qrBuffer }) {
+function wrapSmtpError(err) {
+  if (['ETIMEDOUT', 'ESOCKET', 'ECONNREFUSED', 'ENETUNREACH'].includes(err.code)) {
+    return new Error(`${err.message}. ${RENDER_SMTP_BLOCK_HINT}`);
+  }
+  if (err.code === 'EAUTH') {
+    return new Error('SMTP login failed. Check SMTP_USER and SMTP_PASS on Render.');
+  }
+  return err;
+}
+
+async function sendViaResend({ to, subject, html, attachments = [] }) {
+  const { Resend } = require('resend');
+  const resend = new Resend(process.env.RESEND_API_KEY.trim());
+
+  const result = await resend.emails.send({
+    from: getFromAddress(),
+    to,
+    subject,
+    html,
+    attachments: attachments.map((attachment) => ({
+      filename: attachment.filename,
+      content: attachment.content,
+    })),
+  });
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return {
+    messageId: result.data?.id || null,
+    previewUrl: null,
+    sentTo: to,
+    accepted: [to],
+    provider: 'resend',
+  };
+}
+
+async function sendViaSmtp({ to, subject, html, attachments = [] }) {
   const transport = getTransporter();
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
   try {
     const info = await transport.sendMail({
-      from,
+      from: getFromAddress(),
       to,
-      subject: `Booking Confirmed - ${bookingRef}`,
-      html: `
-        <h2>Booking Confirmed!</h2>
-        <p>Hi ${name},</p>
-        <p>Your booking <strong>${bookingRef}</strong> for <strong>${eventTitle}</strong> is confirmed.</p>
-        <p><strong>Date:</strong> ${eventDate} at ${eventTime}</p>
-        <p><strong>Seats:</strong> ${seats}</p>
-        <p>Please present the attached QR code at the venue.</p>
-      `,
-      attachments: [
-        {
-          filename: `ticket-${bookingRef}.png`,
-          content: qrBuffer,
-          contentType: 'image/png',
-        },
-      ],
+      subject,
+      html,
+      attachments,
     });
 
     return {
       messageId: info.messageId,
       previewUrl: nodemailer.getTestMessageUrl(info) || null,
       sentTo: to,
+      accepted: info.accepted,
+      provider: 'smtp',
     };
   } catch (err) {
-    if (err.code === 'EAUTH') {
-      throw new Error('SMTP login failed. Check SMTP_USER and SMTP_PASS (use a Gmail App Password, not your normal password).');
-    }
-    throw err;
+    throw wrapSmtpError(err);
   }
 }
 
+async function sendEmail(payload) {
+  if (isResendConfigured()) {
+    return sendViaResend(payload);
+  }
+  if (isSmtpConfigured()) {
+    return sendViaSmtp(payload);
+  }
+  throw new Error('Email is not configured. Set RESEND_API_KEY or SMTP credentials on the server.');
+}
+
+async function verifyEmailConnection() {
+  if (isResendConfigured()) {
+    return { ok: true, provider: 'resend' };
+  }
+
+  if (!isSmtpConfigured()) {
+    return { ok: false, error: 'Email environment variables are missing' };
+  }
+
+  try {
+    await getTransporter().verify();
+    return { ok: true, provider: 'smtp' };
+  } catch (err) {
+    const wrapped = wrapSmtpError(err);
+    return { ok: false, provider: 'smtp', error: wrapped.message };
+  }
+}
+
+async function sendBookingConfirmation({ to, name, bookingRef, eventTitle, eventDate, eventTime, seats, qrBuffer }) {
+  return sendEmail({
+    to,
+    subject: `Booking Confirmed - ${bookingRef}`,
+    html: `
+      <h2>Booking Confirmed!</h2>
+      <p>Hi ${name},</p>
+      <p>Your booking <strong>${bookingRef}</strong> for <strong>${eventTitle}</strong> is confirmed.</p>
+      <p><strong>Date:</strong> ${eventDate} at ${eventTime}</p>
+      <p><strong>Seats:</strong> ${seats}</p>
+      <p>Please present the attached QR code at the venue.</p>
+    `,
+    attachments: [
+      {
+        filename: `ticket-${bookingRef}.png`,
+        content: qrBuffer,
+        contentType: 'image/png',
+      },
+    ],
+  });
+}
+
+async function sendTestEmail(to, name) {
+  return sendEmail({
+    to,
+    subject: 'Ticket Booking System - Test Email',
+    html: `<p>Hi ${name},</p><p>If you received this, email delivery is working correctly.</p>`,
+  });
+}
+
 async function sendWaitlistOffer({ to, name, eventTitle, categoryName, offerLink, expiresAt }) {
-  const transport = getTransporter();
-  const info = await transport.sendMail({
-    from: process.env.SMTP_FROM || 'Ticket Booking <noreply@ticketbooking.local>',
+  return sendEmail({
     to,
     subject: `Seat Available - ${eventTitle}`,
     html: `
@@ -84,11 +205,15 @@ async function sendWaitlistOffer({ to, name, eventTitle, categoryName, offerLink
       <p>If you do not complete booking in time, the seat will be offered to the next person on the waitlist.</p>
     `,
   });
-
-  return {
-    messageId: info.messageId,
-    previewUrl: nodemailer.getTestMessageUrl(info) || null,
-  };
 }
 
-module.exports = { isSmtpConfigured, sendBookingConfirmation, sendWaitlistOffer };
+module.exports = {
+  isResendConfigured,
+  isSmtpConfigured,
+  isEmailConfigured,
+  verifyEmailConnection,
+  verifySmtpConnection: verifyEmailConnection,
+  sendBookingConfirmation,
+  sendTestEmail,
+  sendWaitlistOffer,
+};
