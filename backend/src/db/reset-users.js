@@ -14,5 +14,5 @@ db.exec('DELETE FROM events');
 db.exec('DELETE FROM email_otps');
 db.exec('DELETE FROM users');
 
-console.log('All accounts cleared. Re-seeding demo accounts...');
+console.log('All accounts cleared. Re-seeding admin account...');
 require('./seed');

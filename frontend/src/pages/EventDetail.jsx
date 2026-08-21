@@ -81,6 +81,7 @@ export default function EventDetail() {
     } catch (err) {
       if (err.message.includes('Session expired') || err.message.includes('Authentication')) {
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
         navigate('/login');
       }
       setError(err.message);

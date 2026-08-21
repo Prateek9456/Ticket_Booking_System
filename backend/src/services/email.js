@@ -346,6 +346,83 @@ async function sendBookingCancellation({ to, name, bookingRef, eventTitle, event
   });
 }
 
+function roleLabel(role) {
+  if (role === 'admin') return 'Admin';
+  if (role === 'organiser') return 'Organiser';
+  return 'Customer';
+}
+
+async function sendRegistrationWelcome({ to, name, role }) {
+  const label = roleLabel(role);
+  return sendEmail({
+    to,
+    subject: `Welcome to Ticket Booking - ${label} Account`,
+    html: `
+      <h2>Welcome, ${name}!</h2>
+      <p>Your <strong>${label}</strong> account has been created successfully.</p>
+      <p>You can now log in with this email address to ${role === 'organiser' ? 'create and manage events' : role === 'admin' ? 'manage venues' : 'browse events and book tickets'}.</p>
+      <p>If you did not create this account, please contact support immediately.</p>
+    `,
+  });
+}
+
+async function sendEventCreated({ to, name, title, type, venueName, eventDate, eventTime }) {
+  return sendEmail({
+    to,
+    subject: `Event Created - ${title}`,
+    html: `
+      <h2>Event Created</h2>
+      <p>Hi ${name},</p>
+      <p>Your event <strong>${title}</strong> (${type}) has been created at <strong>${venueName}</strong>.</p>
+      <p><strong>Date:</strong> ${eventDate} at ${eventTime}</p>
+      <p>Customers can now discover and book tickets for this event.</p>
+    `,
+  });
+}
+
+async function sendEventCancelled({ to, name, title, venueName, eventDate, eventTime }) {
+  return sendEmail({
+    to,
+    subject: `Event Cancelled - ${title}`,
+    html: `
+      <h2>Event Cancelled</h2>
+      <p>Hi ${name},</p>
+      <p>Your event <strong>${title}</strong> at <strong>${venueName}</strong> has been removed.</p>
+      <p><strong>Was scheduled for:</strong> ${eventDate} at ${eventTime}</p>
+      <p>If you did not request this, please contact support immediately.</p>
+    `,
+  });
+}
+
+async function sendVenueCreated({ to, name, venueName, rows, cols, categories }) {
+  const categoryList = categories.map((c) => c.name).join(', ');
+  return sendEmail({
+    to,
+    subject: `Venue Created - ${venueName}`,
+    html: `
+      <h2>Venue Created</h2>
+      <p>Hi ${name},</p>
+      <p>Venue <strong>${venueName}</strong> has been created successfully.</p>
+      <p><strong>Layout:</strong> ${rows} rows &times; ${cols} columns</p>
+      <p><strong>Categories:</strong> ${categoryList}</p>
+      <p>Organisers can now use this venue when creating events.</p>
+    `,
+  });
+}
+
+async function sendVenueCancelled({ to, name, venueName, rows, cols }) {
+  return sendEmail({
+    to,
+    subject: `Venue Removed - ${venueName}`,
+    html: `
+      <h2>Venue Removed</h2>
+      <p>Hi ${name},</p>
+      <p>Venue <strong>${venueName}</strong> (${rows} rows &times; ${cols} columns) has been removed from the system.</p>
+      <p>If you did not request this, please contact support immediately.</p>
+    `,
+  });
+}
+
 module.exports = {
   isBrevoConfigured,
   isResendConfigured,
@@ -358,6 +435,11 @@ module.exports = {
   sendBookingConfirmation,
   sendBookingCancellation,
   sendPasswordResetOtp,
+  sendRegistrationWelcome,
+  sendEventCreated,
+  sendEventCancelled,
+  sendVenueCreated,
+  sendVenueCancelled,
   sendTestEmail,
   sendWaitlistOffer,
 };

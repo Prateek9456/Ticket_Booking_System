@@ -3,10 +3,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/database');
 const { authenticate } = require('../middleware/auth');
+const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config');
 const {
   isEmailConfigured,
   sendTestEmail,
   sendPasswordResetOtp,
+  sendRegistrationWelcome,
 } = require('../services/email');
 const {
   normalizeEmail,
@@ -40,7 +42,14 @@ router.post('/register', (req, res) => {
       'INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)'
     ).run(normalizedEmail, hash, name.trim(), allowedRole);
     const user = { id: result.lastInsertRowid, email: normalizedEmail, name: name.trim(), role: allowedRole };
-    const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign(user, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    if (isEmailConfigured()) {
+      sendRegistrationWelcome({ to: normalizedEmail, name: user.name, role: allowedRole }).catch((err) => {
+        console.error('Registration welcome email failed:', err.message);
+      });
+    }
+
     res.status(201).json({ user, token });
   } catch {
     res.status(409).json({ error: 'An account with this email already exists. Log in or use forgot password to reset.' });
@@ -69,7 +78,7 @@ router.post('/login', (req, res) => {
   }
 
   const payload = { id: user.id, email: user.email, name: user.name, role: user.role };
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
   res.json({ user: payload, token });
 });
 

@@ -54,6 +54,7 @@ export const api = {
 
   getVenues: () => request('/admin/venues'),
   createVenue: (body) => request('/admin/venues', { method: 'POST', body: JSON.stringify(body) }),
+  deleteVenue: (id) => request(`/admin/venues/${id}`, { method: 'DELETE' }),
   getVenue: (id) => request(`/admin/venues/${id}`),
 
   getOrganiserVenues: () => request('/organiser/venues'),

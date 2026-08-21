@@ -58,7 +58,7 @@ export default function Login() {
           No account? <Link to="/register">Register</Link>
         </p>
         <div className="alert alert-info" style={{ marginTop: '1rem' }}>
-          Demo: customer@demo.com / customer123 | organiser@demo.com / organiser123 | admin@ticketbooking.com / admin123
+          Admin: admin@ticketbooking.com / admin123
         </div>
       </div>
     </div>

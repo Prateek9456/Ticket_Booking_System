@@ -2,12 +2,13 @@ const express = require('express');
 const { getDb, withTransaction } = require('../db/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { initEventSeats } = require('../services/seatHold');
+const { isEmailConfigured, sendEventCreated, sendEventCancelled } = require('../services/email');
 
 const router = express.Router();
 
 router.use(authenticate, authorize('organiser'));
 
-router.post('/events', (req, res) => {
+router.post('/events', async (req, res) => {
   const { title, type, venueId, eventDate, eventTime, description, pricing } = req.body;
   if (!title || !type || !venueId || !eventDate || !eventTime || !pricing?.length) {
     return res.status(400).json({ error: 'All event fields and pricing are required' });
@@ -29,7 +30,29 @@ router.post('/events', (req, res) => {
       initEventSeats(db, event.lastInsertRowid, venueId);
       return event.lastInsertRowid;
     });
-    res.status(201).json({ id: eventId, message: 'Event created' });
+
+    let email = { sent: false };
+    const organiser = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
+    const venue = db.prepare('SELECT name FROM venues WHERE id = ?').get(venueId);
+    if (organiser && isEmailConfigured()) {
+      try {
+        const info = await sendEventCreated({
+          to: organiser.email,
+          name: organiser.name,
+          title,
+          type,
+          venueName: venue?.name || 'Unknown venue',
+          eventDate,
+          eventTime,
+        });
+        email = { sent: true, sentTo: info.sentTo };
+      } catch (emailErr) {
+        console.error('Event creation email failed:', emailErr.message);
+        email = { sent: false, error: emailErr.message };
+      }
+    }
+
+    res.status(201).json({ id: eventId, message: 'Event created', email });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -47,11 +70,15 @@ router.get('/events', (req, res) => {
   res.json(events);
 });
 
-router.delete('/events/:id', (req, res) => {
+router.delete('/events/:id', async (req, res) => {
   const db = getDb();
   const eventId = Number(req.params.id);
 
-  const event = db.prepare('SELECT id FROM events WHERE id = ? AND organiser_id = ?').get(eventId, req.user.id);
+  const event = db.prepare(`
+    SELECT e.*, v.name as venue_name FROM events e
+    JOIN venues v ON v.id = e.venue_id
+    WHERE e.id = ? AND e.organiser_id = ?
+  `).get(eventId, req.user.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
   const confirmedCount = db.prepare(`
@@ -67,7 +94,27 @@ router.delete('/events/:id', (req, res) => {
       db.prepare('DELETE FROM bookings WHERE event_id = ?').run(eventId);
       db.prepare('DELETE FROM events WHERE id = ?').run(eventId);
     });
-    res.json({ message: 'Event deleted' });
+
+    let email = { sent: false };
+    const organiser = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
+    if (organiser && isEmailConfigured()) {
+      try {
+        const info = await sendEventCancelled({
+          to: organiser.email,
+          name: organiser.name,
+          title: event.title,
+          venueName: event.venue_name,
+          eventDate: event.event_date,
+          eventTime: event.event_time,
+        });
+        email = { sent: true, sentTo: info.sentTo };
+      } catch (emailErr) {
+        console.error('Event cancellation email failed:', emailErr.message);
+        email = { sent: false, error: emailErr.message };
+      }
+    }
+
+    res.json({ message: 'Event deleted', email });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

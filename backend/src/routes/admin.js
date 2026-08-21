@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb, withTransaction } = require('../db/database');
 const { authenticate, authorize } = require('../middleware/auth');
+const { isEmailConfigured, sendVenueCreated, sendVenueCancelled } = require('../services/email');
 
 const router = express.Router();
 
@@ -11,7 +12,7 @@ router.get('/venues', (req, res) => {
   res.json(venues);
 });
 
-router.post('/venues', (req, res) => {
+router.post('/venues', async (req, res) => {
   const { name, rows, cols, categories } = req.body;
   if (!name || !rows || !cols || !categories?.length) {
     return res.status(400).json({ error: 'Name, rows, cols, and categories are required' });
@@ -44,7 +45,27 @@ router.post('/venues', (req, res) => {
 
       return venueId;
     });
-    res.status(201).json({ id: venueId, message: 'Venue created' });
+
+    let email = { sent: false };
+    const admin = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
+    if (admin && isEmailConfigured()) {
+      try {
+        const info = await sendVenueCreated({
+          to: admin.email,
+          name: admin.name,
+          venueName: name,
+          rows,
+          cols,
+          categories,
+        });
+        email = { sent: true, sentTo: info.sentTo };
+      } catch (emailErr) {
+        console.error('Venue creation email failed:', emailErr.message);
+        email = { sent: false, error: emailErr.message };
+      }
+    }
+
+    res.status(201).json({ id: venueId, message: 'Venue created', email });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -63,6 +84,46 @@ router.get('/venues/:id', (req, res) => {
   `).all(venue.id);
 
   res.json({ ...venue, categories, seats });
+});
+
+router.delete('/venues/:id', async (req, res) => {
+  const db = getDb();
+  const venueId = Number(req.params.id);
+  const venue = db.prepare('SELECT * FROM venues WHERE id = ?').get(venueId);
+  if (!venue) return res.status(404).json({ error: 'Venue not found' });
+
+  const eventCount = db.prepare('SELECT COUNT(*) as count FROM events WHERE venue_id = ?').get(venueId).count;
+  if (eventCount > 0) {
+    return res.status(400).json({ error: 'Cannot delete venue with existing events' });
+  }
+
+  try {
+    withTransaction(db, () => {
+      db.prepare('DELETE FROM venues WHERE id = ?').run(venueId);
+    });
+
+    let email = { sent: false };
+    const admin = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
+    if (admin && isEmailConfigured()) {
+      try {
+        const info = await sendVenueCancelled({
+          to: admin.email,
+          name: admin.name,
+          venueName: venue.name,
+          rows: venue.rows,
+          cols: venue.cols,
+        });
+        email = { sent: true, sentTo: info.sentTo };
+      } catch (emailErr) {
+        console.error('Venue deletion email failed:', emailErr.message);
+        email = { sent: false, error: emailErr.message };
+      }
+    }
+
+    res.json({ message: 'Venue deleted', email });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 module.exports = router;

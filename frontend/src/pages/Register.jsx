@@ -14,8 +14,9 @@ export default function Register() {
     setError('');
     setEmailRegistered(false);
     try {
-      await register(form);
-      navigate('/');
+      const user = await register(form);
+      if (user.role === 'organiser') navigate('/organiser');
+      else navigate('/');
     } catch (err) {
       setError(err.message);
       if (err.data?.emailRegistered) {

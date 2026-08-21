@@ -20,10 +20,33 @@ export default function AdminVenues() {
 
   async function handleCreate(e) {
     e.preventDefault();
+    setError('');
+    setMessage('');
     try {
-      await api.createVenue(form);
-      setMessage('Venue created successfully');
+      const result = await api.createVenue(form);
+      setMessage(
+        result.email?.sent
+          ? `Venue created. Confirmation email sent to ${result.email.sentTo}.`
+          : 'Venue created successfully'
+      );
       setShowForm(false);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleDelete(venue) {
+    if (!confirm(`Remove venue "${venue.name}"? This cannot be undone.`)) return;
+    setError('');
+    setMessage('');
+    try {
+      const result = await api.deleteVenue(venue.id);
+      setMessage(
+        result.email?.sent
+          ? `Venue removed. Confirmation email sent to ${result.email.sentTo}.`
+          : 'Venue removed'
+      );
       load();
     } catch (err) {
       setError(err.message);
@@ -90,8 +113,15 @@ export default function AdminVenues() {
       <div className="grid grid-2">
         {venues.map((v) => (
           <div key={v.id} className="card">
-            <h3>{v.name}</h3>
-            <p>{v.rows} rows &times; {v.cols} columns</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+              <div>
+                <h3>{v.name}</h3>
+                <p>{v.rows} rows &times; {v.cols} columns</p>
+              </div>
+              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(v)}>
+                Remove
+              </button>
+            </div>
           </div>
         ))}
       </div>

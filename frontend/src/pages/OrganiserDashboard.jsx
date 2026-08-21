@@ -28,13 +28,19 @@ export default function OrganiserDashboard() {
 
   async function handleCreate(e) {
     e.preventDefault();
+    setError('');
+    setMessage('');
     try {
-      await api.createEvent({
+      const result = await api.createEvent({
         ...form,
         venueId: Number(form.venueId),
         pricing: form.pricing.map((p) => ({ categoryId: p.categoryId, price: Number(p.price) })),
       });
-      setMessage('Event created');
+      setMessage(
+        result.email?.sent
+          ? `Event created. Confirmation email sent to ${result.email.sentTo}.`
+          : 'Event created'
+      );
       setShowForm(false);
       api.getOrganiserEvents().then(setEvents);
     } catch (err) {
@@ -60,8 +66,12 @@ export default function OrganiserDashboard() {
 
     setError('');
     try {
-      await api.deleteEvent(event.id);
-      setMessage('Event deleted');
+      const result = await api.deleteEvent(event.id);
+      setMessage(
+        result.email?.sent
+          ? `Event deleted. Confirmation email sent to ${result.email.sentTo}.`
+          : 'Event deleted'
+      );
       setEvents((prev) => prev.filter((e) => e.id !== event.id));
       if (summary?.event?.id === event.id) setSummary(null);
     } catch (err) {
