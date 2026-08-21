@@ -167,6 +167,8 @@ router.post('/:id/resend-email', authenticate, async (req, res) => {
       message: 'Email sent',
       sentTo: booking.email,
       previewUrl: info.previewUrl || null,
+      provider: info.provider || null,
+      messageId: info.messageId || null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

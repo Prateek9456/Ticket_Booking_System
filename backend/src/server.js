@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { initDb } = require('./db/database');
 const { startSchedulers } = require('./schedulers/expiry');
-const { isEmailConfigured, isResendConfigured, isSmtpConfigured, verifyEmailConnection } = require('./services/email');
+const { isEmailConfigured, isResendConfigured, isSmtpConfigured, getResendFromAddress, verifyEmailConnection } = require('./services/email');
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -27,6 +27,7 @@ app.get('/api/health', async (_req, res) => {
     status: 'ok',
     emailConfigured: isEmailConfigured(),
     emailProvider: email.provider || null,
+    emailFrom: email.from || (isResendConfigured() ? getResendFromAddress() : null),
     resendConfigured: isResendConfigured(),
     smtpConfigured: isSmtpConfigured(),
     smtpHost: process.env.SMTP_HOST || null,
@@ -34,6 +35,9 @@ app.get('/api/health', async (_req, res) => {
     emailError: email.error || null,
     renderSmtpBlockedHint: isSmtpConfigured() && !isResendConfigured()
       ? 'Render free tier blocks SMTP ports 587/465. Use RESEND_API_KEY or upgrade Render.'
+      : null,
+    resendHint: isResendConfigured()
+      ? 'With onboarding@resend.dev, emails only deliver to the address you used on resend.com. Register in the app with that same email.'
       : null,
   });
 });

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Bookings() {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -37,6 +39,8 @@ export default function Bookings() {
     }
   }
 
+  const isDemoEmail = user?.email?.endsWith('@demo.com');
+
   async function handleCancel(id) {
     if (!confirm('Cancel this booking?')) return;
     try {
@@ -51,6 +55,17 @@ export default function Bookings() {
   return (
     <div className="container">
       <h1 className="page-title">My Bookings</h1>
+      {user?.email && (
+        <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+          Booking emails are sent to <strong>{user.email}</strong>
+        </p>
+      )}
+      {isDemoEmail && (
+        <div className="alert alert-error">
+          You are logged in with a demo email ({user.email}). Resend cannot deliver to fake addresses.
+          Register a new account with the same email you used on resend.com.
+        </div>
+      )}
       {error && <div className="alert alert-error">{error}</div>}
       {message && <div className="alert alert-success">{message}</div>}
 

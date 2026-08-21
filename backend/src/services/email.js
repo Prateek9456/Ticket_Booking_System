@@ -17,17 +17,40 @@ function isEmailConfigured() {
   return isResendConfigured() || isSmtpConfigured();
 }
 
-function getFromAddress() {
+function getResendFromAddress() {
   const resendFrom = process.env.RESEND_FROM?.trim();
   if (resendFrom) return resendFrom;
+  return 'Ticket Booking <onboarding@resend.dev>';
+}
 
+function getSmtpFromAddress() {
   const user = process.env.SMTP_USER?.trim();
   const from = process.env.SMTP_FROM?.trim();
 
   if (from && from.includes('<')) return from;
   if (from && from.includes('@')) return `"Ticket Booking" <${from}>`;
   if (user) return `"Ticket Booking" <${user}>`;
-  return 'Ticket Booking <onboarding@resend.dev>';
+  return '"Ticket Booking" <noreply@ticketbooking.local>';
+}
+
+function wrapResendError(message, to) {
+  const lower = message.toLowerCase();
+
+  if (lower.includes('only send testing emails to your own email')) {
+    return new Error(
+      `Resend test mode only delivers to the email you signed up with on resend.com (not ${to}). ` +
+      'Register in the app with that same email, or verify a custom domain on Resend.'
+    );
+  }
+
+  if (lower.includes('not verified') || lower.includes('domain') || lower.includes('from')) {
+    return new Error(
+      `Resend rejected the sender address. Set RESEND_FROM to "Ticket Booking <onboarding@resend.dev>" ` +
+      `on Render and remove SMTP_FROM. Details: ${message}`
+    );
+  }
+
+  return new Error(message);
 }
 
 function getAuthCredentials() {
@@ -87,7 +110,7 @@ async function sendViaResend({ to, subject, html, attachments = [] }) {
   const resend = new Resend(process.env.RESEND_API_KEY.trim());
 
   const result = await resend.emails.send({
-    from: getFromAddress(),
+    from: getResendFromAddress(),
     to,
     subject,
     html,
@@ -98,7 +121,7 @@ async function sendViaResend({ to, subject, html, attachments = [] }) {
   });
 
   if (result.error) {
-    throw new Error(result.error.message);
+    throw wrapResendError(result.error.message, to);
   }
 
   return {
@@ -107,6 +130,7 @@ async function sendViaResend({ to, subject, html, attachments = [] }) {
     sentTo: to,
     accepted: [to],
     provider: 'resend',
+    from: getResendFromAddress(),
   };
 }
 
@@ -115,7 +139,7 @@ async function sendViaSmtp({ to, subject, html, attachments = [] }) {
 
   try {
     const info = await transport.sendMail({
-      from: getFromAddress(),
+      from: getSmtpFromAddress(),
       to,
       subject,
       html,
@@ -146,7 +170,11 @@ async function sendEmail(payload) {
 
 async function verifyEmailConnection() {
   if (isResendConfigured()) {
-    return { ok: true, provider: 'resend' };
+    return {
+      ok: true,
+      provider: 'resend',
+      from: getResendFromAddress(),
+    };
   }
 
   if (!isSmtpConfigured()) {
@@ -211,6 +239,7 @@ module.exports = {
   isResendConfigured,
   isSmtpConfigured,
   isEmailConfigured,
+  getResendFromAddress,
   verifyEmailConnection,
   verifySmtpConnection: verifyEmailConnection,
   sendBookingConfirmation,
