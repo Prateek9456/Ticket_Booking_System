@@ -10,7 +10,7 @@ services:
     env: node
     plan: free
     rootDir: backend
-    buildCommand: npm install && npm run seed
+    buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_VERSION

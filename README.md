@@ -398,8 +398,8 @@ For the full system design write-up, see [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_D
 1. Create a **Web Service** with root directory `backend`.
 2. Create a **PostgreSQL** database (free tier) and link it via `DATABASE_URL`.
 3. **Instance type:** Free
-4. **Build command:** `npm install && npm run seed`
-5. **Start command:** `npm start`
+4. **Build command:** `npm install`
+5. **Start command:** `npm start` (seeds admin + demo venue on first run)
 6. Set environment variables from the table above.
 
 Alternatively, use the included [`render.yaml`](render.yaml) blueprint — it provisions both the API and a PostgreSQL database automatically.

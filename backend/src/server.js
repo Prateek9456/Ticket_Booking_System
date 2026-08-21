@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { initDb, getDatabaseType } = require('./db/database');
+const { runSeed } = require('./db/seed-data');
 const { startSchedulers } = require('./schedulers/expiry');
 const { isEmailConfigured, isBrevoConfigured, isResendConfigured, isSmtpConfigured, getResendFromAddress, verifyEmailConnection } = require('./services/email');
 
@@ -57,7 +58,8 @@ app.use((err, req, res, _next) => {
 });
 
 async function start() {
-  await initDb();
+  const db = await initDb();
+  await runSeed(db);
   startSchedulers();
 
   app.listen(PORT, () => {

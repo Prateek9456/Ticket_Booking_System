@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { initDb } = require('./database');
+const { runSeed } = require('./seed-data');
 
 async function resetUsers() {
   const db = await initDb();
@@ -16,7 +17,7 @@ async function resetUsers() {
   await db.exec('DELETE FROM users');
 
   console.log('All accounts cleared. Re-seeding admin account...');
-  require('./seed');
+  await runSeed(db);
 }
 
 resetUsers().catch((err) => {
