@@ -35,9 +35,9 @@ Customers, organisers, and additional admins register through the app at [/regis
 
 | Layer | Technology |
 |-------|------------|
-| Backend | Node.js 20+, Express, SQLite (`node:sqlite`) |
+| Backend | Node.js 20+, Express, SQLite (local) / PostgreSQL (production) |
 | Frontend | React 18, Vite, React Router |
-| Auth | JWT (7-day expiry) + bcrypt |
+| Auth | JWT (30-day expiry) + bcrypt |
 | Email | Brevo API (production), Resend, or SMTP/Nodemailer |
 | QR Code | `qrcode` npm package |
 | Scheduler | `node-cron` (seat hold and waitlist offer expiry) |
@@ -167,7 +167,7 @@ The Vite dev server proxies `/api` requests to `http://localhost:3001`.
 |----------|-------------|---------|
 | `PORT` | API server port | `3001` |
 | `JWT_SECRET` | Secret for JWT signing | *(required in production)* |
-| `JWT_EXPIRES_IN` | Token lifetime | `7d` |
+| `JWT_EXPIRES_IN` | Token lifetime | `30d` |
 | `SEAT_HOLD_TTL_MINUTES` | Seat hold duration in minutes | `10` |
 | `WAITLIST_OFFER_TTL_MINUTES` | Waitlist offer duration in minutes | `15` |
 | `FRONTEND_URL` | Frontend URL for waitlist links | `http://localhost:5173` |
@@ -233,7 +233,8 @@ Render free tier blocks SMTP. Use Brevo on Render instead.
 |----------|--------|
 | `FRONTEND_URL` | `https://ticket-booking-system-red.vercel.app` |
 | `JWT_SECRET` | A long random secret string |
-| `JWT_EXPIRES_IN` | `7d` |
+| `JWT_EXPIRES_IN` | `30d` |
+| `DATABASE_URL` | PostgreSQL connection string (auto-set on Render) |
 | `SEAT_HOLD_TTL_MINUTES` | `10` |
 | `WAITLIST_OFFER_TTL_MINUTES` | `15` |
 | `BREVO_API_KEY` | Brevo API key (recommended) |
@@ -318,13 +319,18 @@ Render free tier blocks SMTP. Use Brevo on Render instead.
 
 ### Storage
 
-All data is stored in a single **SQLite** file:
+| Environment | Database | Persistence |
+|-------------|----------|-------------|
+| **Local dev** | SQLite file at `backend/data/ticket_booking.db` | Survives restarts on your machine |
+| **Production (Render)** | PostgreSQL via `DATABASE_URL` | Persistent — accounts, events, and bookings survive redeploys and long gaps between visits |
+
+Locally, data is stored in a single SQLite file:
 
 ```
 backend/data/ticket_booking.db
 ```
 
-The file is created on first run and is **gitignored**. On Render free tier, the filesystem is ephemeral — data may reset on redeploy.
+The file is created on first run and is **gitignored**. On Render, the app uses a **PostgreSQL** database (configured in `render.yaml`) so data is no longer lost when the server restarts or redeploys.
 
 ### Schema
 
@@ -390,12 +396,13 @@ For the full system design write-up, see [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_D
 ### Backend — Render
 
 1. Create a **Web Service** with root directory `backend`.
-2. **Instance type:** Free
-3. **Build command:** `npm install && npm run seed`
-4. **Start command:** `npm start`
-5. Set environment variables from the table above.
+2. Create a **PostgreSQL** database (free tier) and link it via `DATABASE_URL`.
+3. **Instance type:** Free
+4. **Build command:** `npm install && npm run seed`
+5. **Start command:** `npm start`
+6. Set environment variables from the table above.
 
-Alternatively, use the included [`render.yaml`](render.yaml) blueprint (`plan: free`).
+Alternatively, use the included [`render.yaml`](render.yaml) blueprint — it provisions both the API and a PostgreSQL database automatically.
 
 ### Frontend — Vercel
 

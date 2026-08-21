@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { initDb } = require('./db/database');
+const { initDb, getDatabaseType } = require('./db/database');
 const { startSchedulers } = require('./schedulers/expiry');
 const { isEmailConfigured, isBrevoConfigured, isResendConfigured, isSmtpConfigured, getResendFromAddress, verifyEmailConnection } = require('./services/email');
 
@@ -13,8 +13,6 @@ const seatRoutes = require('./routes/seats');
 const bookingRoutes = require('./routes/bookings');
 const waitlistRoutes = require('./routes/waitlist');
 
-initDb();
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -25,6 +23,7 @@ app.get('/api/health', async (_req, res) => {
   const email = await verifyEmailConnection();
   res.json({
     status: 'ok',
+    database: getDatabaseType(),
     emailConfigured: isEmailConfigured(),
     emailProvider: email.provider || null,
     emailFrom: email.from || (isResendConfigured() ? getResendFromAddress() : null),
@@ -57,8 +56,16 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-startSchedulers();
+async function start() {
+  await initDb();
+  startSchedulers();
 
-app.listen(PORT, () => {
-  console.log(`Ticket Booking API running on http://localhost:${PORT}`);
+  app.listen(PORT, () => {
+    console.log(`Ticket Booking API running on http://localhost:${PORT} (${getDatabaseType()})`);
+  });
+}
+
+start().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

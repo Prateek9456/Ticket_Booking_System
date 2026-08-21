@@ -5,20 +5,20 @@ const { joinWaitlist, acceptWaitlistOffer } = require('../services/seatHold');
 
 const router = express.Router();
 
-router.post('/:eventId/join', authenticate, (req, res) => {
+router.post('/:eventId/join', authenticate, async (req, res) => {
   const { categoryId } = req.body;
   if (!categoryId) return res.status(400).json({ error: 'categoryId required' });
 
   try {
-    const result = joinWaitlist(getDb(), Number(req.params.eventId), categoryId, req.user.id);
+    const result = await joinWaitlist(getDb(), Number(req.params.eventId), categoryId, req.user.id);
     res.status(201).json(result);
   } catch (err) {
     res.status(409).json({ error: err.message });
   }
 });
 
-router.get('/:eventId/my', authenticate, (req, res) => {
-  const entries = getDb().prepare(`
+router.get('/:eventId/my', authenticate, async (req, res) => {
+  const entries = await getDb().prepare(`
     SELECT w.*, sc.name as category_name
     FROM waitlist w JOIN seat_categories sc ON sc.id = w.category_id
     WHERE w.event_id = ? AND w.user_id = ?
@@ -27,8 +27,8 @@ router.get('/:eventId/my', authenticate, (req, res) => {
   res.json(entries);
 });
 
-router.get('/offer/:token', authenticate, (req, res) => {
-  const entry = getDb().prepare(`
+router.get('/offer/:token', authenticate, async (req, res) => {
+  const entry = await getDb().prepare(`
     SELECT w.*, e.title, e.event_date, e.event_time, sc.name as category_name
     FROM waitlist w
     JOIN events e ON e.id = w.event_id
@@ -45,9 +45,9 @@ router.get('/offer/:token', authenticate, (req, res) => {
   res.json(entry);
 });
 
-router.post('/offer/:token/accept', authenticate, (req, res) => {
+router.post('/offer/:token/accept', authenticate, async (req, res) => {
   try {
-    const result = acceptWaitlistOffer(getDb(), req.params.token, req.user.id);
+    const result = await acceptWaitlistOffer(getDb(), req.params.token, req.user.id);
     res.json(result);
   } catch (err) {
     res.status(409).json({ error: err.message });

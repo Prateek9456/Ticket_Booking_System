@@ -20,9 +20,9 @@ router.post('/confirm', authenticate, async (req, res) => {
 
   try {
     const db = getDb();
-    releaseExpiredHolds(db);
+    await releaseExpiredHolds(db);
 
-    const dbUser = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(req.user.id);
+    const dbUser = await db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(req.user.id);
     if (!dbUser) {
       return res.status(401).json({ error: 'Session expired. Please log out and log in again.' });
     }
@@ -30,7 +30,7 @@ router.post('/confirm', authenticate, async (req, res) => {
     const userEmail = dbUser.email || req.user.email;
     const userName = dbUser.name || req.user.name;
 
-    const bookingData = confirmBooking(db, {
+    const bookingData = await confirmBooking(db, {
       eventId,
       seatIds,
       userId: req.user.id,
@@ -86,8 +86,8 @@ router.post('/confirm', authenticate, async (req, res) => {
   }
 });
 
-router.get('/my', authenticate, (req, res) => {
-  const bookings = getDb().prepare(`
+router.get('/my', authenticate, async (req, res) => {
+  const bookings = await getDb().prepare(`
     SELECT b.*, e.title, e.event_date, e.event_time, e.type, v.name as venue_name
     FROM bookings b
     JOIN events e ON e.id = b.event_id
@@ -97,22 +97,22 @@ router.get('/my', authenticate, (req, res) => {
   `).all(req.user.id);
 
   const db = getDb();
-  const result = bookings.map((b) => ({
+  const result = await Promise.all(bookings.map(async (b) => ({
     ...b,
-    seats: db.prepare(`
+    seats: await db.prepare(`
       SELECT vs.row_num, vs.col_num, bs.price, sc.name as category_name
       FROM booking_seats bs
       JOIN venue_seats vs ON vs.id = bs.seat_id
       JOIN seat_categories sc ON sc.id = vs.category_id
       WHERE bs.booking_id = ?
     `).all(b.id),
-  }));
+  })));
 
   res.json(result);
 });
 
 router.get('/:id/qr', authenticate, async (req, res) => {
-  const booking = getDb().prepare(`
+  const booking = await getDb().prepare(`
     SELECT booking_ref FROM bookings WHERE id = ? AND user_id = ? AND status = 'confirmed'
   `).get(Number(req.params.id), req.user.id);
 
@@ -127,7 +127,7 @@ router.get('/:id/qr', authenticate, async (req, res) => {
 
 router.post('/:id/resend-email', authenticate, async (req, res) => {
   const db = getDb();
-  const booking = db.prepare(`
+  const booking = await db.prepare(`
     SELECT b.*, e.title, e.event_date, e.event_time, u.email, u.name
     FROM bookings b
     JOIN events e ON e.id = b.event_id
@@ -140,7 +140,7 @@ router.post('/:id/resend-email', authenticate, async (req, res) => {
     return res.status(503).json({ error: 'Email is not configured on the server.' });
   }
 
-  const seatRows = db.prepare(`
+  const seatRows = await db.prepare(`
     SELECT vs.row_num, vs.col_num, sc.name as category_name
     FROM booking_seats bs
     JOIN venue_seats vs ON vs.id = bs.seat_id
@@ -179,7 +179,7 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
   try {
     const db = getDb();
     const bookingId = Number(req.params.id);
-    const bookingDetails = db.prepare(`
+    const bookingDetails = await db.prepare(`
       SELECT b.*, e.title, e.event_date, e.event_time, u.email, u.name
       FROM bookings b
       JOIN events e ON e.id = b.event_id
@@ -187,7 +187,7 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
       WHERE b.id = ? AND b.user_id = ? AND b.status = 'confirmed'
     `).get(bookingId, req.user.id);
 
-    const { booking, releasedSeats } = cancelBooking(db, bookingId, req.user.id);
+    const { booking, releasedSeats } = await cancelBooking(db, bookingId, req.user.id);
 
     for (const s of releasedSeats) {
       await processWaitlistAfterCancellation(db, booking.event_id, s.seat_id);
@@ -195,7 +195,7 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
 
     let email = { sent: false };
     if (bookingDetails && isEmailConfigured()) {
-      const seatRows = db.prepare(`
+      const seatRows = await db.prepare(`
         SELECT vs.row_num, vs.col_num, sc.name as category_name
         FROM booking_seats bs
         JOIN venue_seats vs ON vs.id = bs.seat_id
@@ -229,8 +229,8 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
   }
 });
 
-router.get('/verify/:ref', (req, res) => {
-  const booking = getDb().prepare(`
+router.get('/verify/:ref', async (req, res) => {
+  const booking = await getDb().prepare(`
     SELECT b.*, e.title, e.event_date, e.event_time, u.name as customer_name
     FROM bookings b
     JOIN events e ON e.id = b.event_id

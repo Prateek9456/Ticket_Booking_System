@@ -16,24 +16,24 @@ router.post('/events', async (req, res) => {
 
   const db = getDb();
   try {
-    const eventId = withTransaction(db, () => {
-      const event = db.prepare(`
+    const eventId = await withTransaction(db, async () => {
+      const event = await db.prepare(`
         INSERT INTO events (organiser_id, venue_id, title, type, event_date, event_time, description)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(req.user.id, venueId, title, type, eventDate, eventTime, description || '');
 
       const priceStmt = db.prepare('INSERT INTO event_pricing (event_id, category_id, price) VALUES (?, ?, ?)');
       for (const p of pricing) {
-        priceStmt.run(event.lastInsertRowid, p.categoryId, p.price);
+        await priceStmt.run(event.lastInsertRowid, p.categoryId, p.price);
       }
 
-      initEventSeats(db, event.lastInsertRowid, venueId);
+      await initEventSeats(db, event.lastInsertRowid, venueId);
       return event.lastInsertRowid;
     });
 
     let email = { sent: false };
-    const organiser = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
-    const venue = db.prepare('SELECT name FROM venues WHERE id = ?').get(venueId);
+    const organiser = await db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
+    const venue = await db.prepare('SELECT name FROM venues WHERE id = ?').get(venueId);
     if (organiser && isEmailConfigured()) {
       try {
         const info = await sendEventCreated({
@@ -58,8 +58,8 @@ router.post('/events', async (req, res) => {
   }
 });
 
-router.get('/events', (req, res) => {
-  const events = getDb().prepare(`
+router.get('/events', async (req, res) => {
+  const events = await getDb().prepare(`
     SELECT e.*, v.name as venue_name,
       (SELECT COUNT(*) FROM bookings b WHERE b.event_id = e.id AND b.status = 'confirmed') as booking_count,
       (SELECT COALESCE(SUM(b.total_amount), 0) FROM bookings b WHERE b.event_id = e.id AND b.status = 'confirmed') as revenue
@@ -74,29 +74,30 @@ router.delete('/events/:id', async (req, res) => {
   const db = getDb();
   const eventId = Number(req.params.id);
 
-  const event = db.prepare(`
+  const event = await db.prepare(`
     SELECT e.*, v.name as venue_name FROM events e
     JOIN venues v ON v.id = e.venue_id
     WHERE e.id = ? AND e.organiser_id = ?
   `).get(eventId, req.user.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
-  const confirmedCount = db.prepare(`
+  const confirmedRow = await db.prepare(`
     SELECT COUNT(*) as count FROM bookings WHERE event_id = ? AND status = 'confirmed'
-  `).get(eventId).count;
+  `).get(eventId);
+  const confirmedCount = Number(confirmedRow.count);
 
   if (confirmedCount > 0) {
     return res.status(400).json({ error: 'Cannot delete event with confirmed bookings' });
   }
 
   try {
-    withTransaction(db, () => {
-      db.prepare('DELETE FROM bookings WHERE event_id = ?').run(eventId);
-      db.prepare('DELETE FROM events WHERE id = ?').run(eventId);
+    await withTransaction(db, async () => {
+      await db.prepare('DELETE FROM bookings WHERE event_id = ?').run(eventId);
+      await db.prepare('DELETE FROM events WHERE id = ?').run(eventId);
     });
 
     let email = { sent: false };
-    const organiser = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
+    const organiser = await db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id);
     if (organiser && isEmailConfigured()) {
       try {
         const info = await sendEventCancelled({
@@ -120,9 +121,9 @@ router.delete('/events/:id', async (req, res) => {
   }
 });
 
-router.get('/events/:id/summary', (req, res) => {
+router.get('/events/:id/summary', async (req, res) => {
   const db = getDb();
-  const event = db.prepare(`
+  const event = await db.prepare(`
     SELECT e.*, v.name as venue_name FROM events e
     JOIN venues v ON v.id = e.venue_id
     WHERE e.id = ? AND e.organiser_id = ?
@@ -130,14 +131,14 @@ router.get('/events/:id/summary', (req, res) => {
 
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
-  const bookings = db.prepare(`
+  const bookings = await db.prepare(`
     SELECT b.*, u.name as customer_name, u.email as customer_email
     FROM bookings b JOIN users u ON u.id = b.user_id
     WHERE b.event_id = ? AND b.status = 'confirmed'
     ORDER BY b.created_at DESC
   `).all(event.id);
 
-  const seatStats = db.prepare(`
+  const seatStats = await db.prepare(`
     SELECT status, COUNT(*) as count FROM seat_status WHERE event_id = ? GROUP BY status
   `).all(event.id);
 
@@ -146,13 +147,13 @@ router.get('/events/:id/summary', (req, res) => {
   res.json({ event, bookings, seatStats, revenue, totalBookings: bookings.length });
 });
 
-router.get('/venues', (req, res) => {
-  const venues = getDb().prepare('SELECT id, name, rows, cols FROM venues ORDER BY name').all();
+router.get('/venues', async (req, res) => {
+  const venues = await getDb().prepare('SELECT id, name, rows, cols FROM venues ORDER BY name').all();
   const db = getDb();
-  const result = venues.map((v) => ({
+  const result = await Promise.all(venues.map(async (v) => ({
     ...v,
-    categories: db.prepare('SELECT id, name, color FROM seat_categories WHERE venue_id = ?').all(v.id),
-  }));
+    categories: await db.prepare('SELECT id, name, color FROM seat_categories WHERE venue_id = ?').all(v.id),
+  })));
   res.json(result);
 });
 

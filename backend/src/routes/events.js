@@ -3,7 +3,7 @@ const { getDb } = require('../db/database');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { type, search, date } = req.query;
   let sql = `
     SELECT e.*, v.name as venue_name, u.name as organiser_name,
@@ -22,13 +22,13 @@ router.get('/', (req, res) => {
   if (date) { sql += ' AND e.event_date = ?'; params.push(date); }
 
   sql += ' ORDER BY e.event_date ASC, e.event_time ASC';
-  const events = getDb().prepare(sql).all(...params);
+  const events = await getDb().prepare(sql).all(...params);
   res.json(events);
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const db = getDb();
-  const event = db.prepare(`
+  const event = await db.prepare(`
     SELECT e.*, v.name as venue_name, v.rows, v.cols, u.name as organiser_name
     FROM events e
     JOIN venues v ON v.id = e.venue_id
@@ -38,13 +38,13 @@ router.get('/:id', (req, res) => {
 
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
-  const pricing = db.prepare(`
+  const pricing = await db.prepare(`
     SELECT ep.*, sc.name as category_name, sc.color
     FROM event_pricing ep JOIN seat_categories sc ON sc.id = ep.category_id
     WHERE ep.event_id = ?
   `).all(event.id);
 
-  const seatCounts = db.prepare(`
+  const seatCounts = await db.prepare(`
     SELECT status, COUNT(*) as count FROM seat_status WHERE event_id = ? GROUP BY status
   `).all(event.id);
 

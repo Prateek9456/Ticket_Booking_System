@@ -1,3 +1,9 @@
+databases:
+  - name: ticket-booking-db
+    databaseName: ticket_booking
+    user: ticket_booking
+    plan: free
+
 services:
   - type: web
     name: ticket-booking-api
@@ -9,8 +15,14 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ticket-booking-db
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "30d"
       - key: FRONTEND_URL
         value: https://ticket-booking-system-red.vercel.app
       - key: SEAT_HOLD_TTL_MINUTES
