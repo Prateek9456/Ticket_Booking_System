@@ -235,6 +235,39 @@ async function sendWaitlistOffer({ to, name, eventTitle, categoryName, offerLink
   });
 }
 
+async function sendPasswordResetOtp({ to, name, otp, expiresMinutes, role }) {
+  const roleLabel = role === 'admin' ? 'Admin' : role === 'organiser' ? 'Organiser' : 'Customer';
+  return sendEmail({
+    to,
+    subject: 'Password Reset Verification Code',
+    html: `
+      <h2>Reset Your Password</h2>
+      <p>Hi ${name},</p>
+      <p>We received a request to reset the password for your <strong>${roleLabel}</strong> account.</p>
+      <p>Your verification code is:</p>
+      <p style="font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #4f46e5;">${otp}</p>
+      <p>This code expires in <strong>${expiresMinutes} minutes</strong>.</p>
+      <p>If you did not request this, you can safely ignore this email.</p>
+    `,
+  });
+}
+
+async function sendBookingCancellation({ to, name, bookingRef, eventTitle, eventDate, eventTime, seats, totalAmount }) {
+  return sendEmail({
+    to,
+    subject: `Booking Cancelled - ${bookingRef}`,
+    html: `
+      <h2>Booking Cancelled</h2>
+      <p>Hi ${name},</p>
+      <p>Your booking <strong>${bookingRef}</strong> for <strong>${eventTitle}</strong> has been cancelled.</p>
+      <p><strong>Date:</strong> ${eventDate} at ${eventTime}</p>
+      <p><strong>Seats:</strong> ${seats}</p>
+      <p><strong>Refund amount:</strong> $${Number(totalAmount).toFixed(2)}</p>
+      <p>If you did not request this cancellation, please contact support immediately.</p>
+    `,
+  });
+}
+
 module.exports = {
   isResendConfigured,
   isSmtpConfigured,
@@ -243,6 +276,8 @@ module.exports = {
   verifyEmailConnection,
   verifySmtpConnection: verifyEmailConnection,
   sendBookingConfirmation,
+  sendBookingCancellation,
+  sendPasswordResetOtp,
   sendTestEmail,
   sendWaitlistOffer,
 };

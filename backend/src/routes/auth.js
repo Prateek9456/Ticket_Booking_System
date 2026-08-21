@@ -3,7 +3,16 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/database');
 const { authenticate } = require('../middleware/auth');
-const { isEmailConfigured, sendTestEmail } = require('../services/email');
+const {
+  isEmailConfigured,
+  sendTestEmail,
+  sendPasswordResetOtp,
+} = require('../services/email');
+const {
+  normalizeEmail,
+  createPasswordResetOtp,
+  verifyPasswordResetOtp,
+} = require('../services/otp');
 
 const router = express.Router();
 
@@ -12,29 +21,121 @@ router.post('/register', (req, res) => {
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Email, password, and name are required' });
   }
+
+  const normalizedEmail = normalizeEmail(email);
   const allowedRole = role === 'organiser' ? 'organiser' : 'customer';
+  const db = getDb();
+
+  const existing = db.prepare('SELECT id, role FROM users WHERE email = ?').get(normalizedEmail);
+  if (existing) {
+    return res.status(409).json({
+      error: 'An account with this email already exists. Log in or use forgot password to reset.',
+      emailRegistered: true,
+    });
+  }
+
   const hash = bcrypt.hashSync(password, 10);
   try {
-    const result = getDb().prepare(
+    const result = db.prepare(
       'INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)'
-    ).run(email, hash, name, allowedRole);
-    const user = { id: result.lastInsertRowid, email, name, role: allowedRole };
+    ).run(normalizedEmail, hash, name.trim(), allowedRole);
+    const user = { id: result.lastInsertRowid, email: normalizedEmail, name: name.trim(), role: allowedRole };
     const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '24h' });
     res.status(201).json({ user, token });
   } catch {
-    res.status(409).json({ error: 'Email already registered' });
+    res.status(409).json({ error: 'An account with this email already exists. Log in or use forgot password to reset.' });
   }
 });
 
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
-  const user = getDb().prepare('SELECT * FROM users WHERE email = ?').get(email);
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
   }
+
+  const normalizedEmail = normalizeEmail(email);
+  const user = getDb().prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid email or password', emailRegistered: false });
+  }
+
+  if (!bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({
+      error: 'Incorrect password',
+      emailRegistered: true,
+      forgotPassword: true,
+    });
+  }
+
   const payload = { id: user.id, email: user.email, name: user.name, role: user.role };
   const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
   res.json({ user: payload, token });
+});
+
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const db = getDb();
+  const user = db.prepare('SELECT id, email, name, role FROM users WHERE email = ?').get(normalizedEmail);
+
+  if (!user) {
+    return res.json({
+      message: 'If an account exists with this email, a verification code has been sent.',
+    });
+  }
+
+  if (!isEmailConfigured()) {
+    return res.status(503).json({ error: 'Email is not configured on the server.' });
+  }
+
+  try {
+    const { otp, expiresMinutes } = createPasswordResetOtp(db, normalizedEmail);
+    await sendPasswordResetOtp({
+      to: user.email,
+      name: user.name,
+      otp,
+      expiresMinutes,
+      role: user.role,
+    });
+    res.json({
+      message: 'If an account exists with this email, a verification code has been sent.',
+      emailSent: true,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/reset-password', (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ error: 'Email, verification code, and new password are required' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const db = getDb();
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+
+  if (!user) {
+    return res.status(400).json({ error: 'Invalid or expired verification code' });
+  }
+
+  if (!verifyPasswordResetOtp(db, normalizedEmail, otp)) {
+    return res.status(400).json({ error: 'Invalid or expired verification code' });
+  }
+
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
+
+  res.json({ message: 'Password reset successfully. You can now log in with your new password.' });
 });
 
 router.get('/me', authenticate, (req, res) => {

@@ -107,3 +107,16 @@ CREATE INDEX IF NOT EXISTS idx_seat_status_event ON seat_status(event_id);
 CREATE INDEX IF NOT EXISTS idx_seat_status_hold_expires ON seat_status(hold_expires_at);
 CREATE INDEX IF NOT EXISTS idx_waitlist_event_category ON waitlist(event_id, category_id, position);
 CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
+
+-- OTP codes for password reset (all roles)
+CREATE TABLE IF NOT EXISTS email_otps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL,
+  otp_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'password_reset' CHECK(purpose IN ('password_reset')),
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_otps_email ON email_otps(email);

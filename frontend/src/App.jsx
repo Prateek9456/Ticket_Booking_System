@@ -5,6 +5,7 @@ import Events from './pages/Events';
 import EventDetail from './pages/EventDetail';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Bookings from './pages/Bookings';
 import AdminVenues from './pages/AdminVenues';
 import OrganiserDashboard from './pages/OrganiserDashboard';
@@ -27,6 +28,7 @@ function AppRoutes() {
         <Route path="/events/:id" element={<EventDetail />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/bookings" element={<ProtectedRoute roles={['customer']}><Bookings /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminVenues /></ProtectedRoute>} />
         <Route path="/organiser" element={<ProtectedRoute roles={['organiser']}><OrganiserDashboard /></ProtectedRoute>} />

@@ -2,7 +2,7 @@ const express = require('express');
 const { getDb } = require('../db/database');
 const { authenticate } = require('../middleware/auth');
 const { generateBookingQR } = require('../services/qr');
-const { isEmailConfigured, sendBookingConfirmation } = require('../services/email');
+const { isEmailConfigured, sendBookingConfirmation, sendBookingCancellation } = require('../services/email');
 const {
   confirmBooking,
   cancelBooking,
@@ -178,13 +178,52 @@ router.post('/:id/resend-email', authenticate, async (req, res) => {
 router.post('/:id/cancel', authenticate, async (req, res) => {
   try {
     const db = getDb();
-    const { booking, releasedSeats } = cancelBooking(db, Number(req.params.id), req.user.id);
+    const bookingId = Number(req.params.id);
+    const bookingDetails = db.prepare(`
+      SELECT b.*, e.title, e.event_date, e.event_time, u.email, u.name
+      FROM bookings b
+      JOIN events e ON e.id = b.event_id
+      JOIN users u ON u.id = b.user_id
+      WHERE b.id = ? AND b.user_id = ? AND b.status = 'confirmed'
+    `).get(bookingId, req.user.id);
+
+    const { booking, releasedSeats } = cancelBooking(db, bookingId, req.user.id);
 
     for (const s of releasedSeats) {
       await processWaitlistAfterCancellation(db, booking.event_id, s.seat_id);
     }
 
-    res.json({ message: 'Booking cancelled', bookingRef: booking.booking_ref });
+    let email = { sent: false };
+    if (bookingDetails && isEmailConfigured()) {
+      const seatRows = db.prepare(`
+        SELECT vs.row_num, vs.col_num, sc.name as category_name
+        FROM booking_seats bs
+        JOIN venue_seats vs ON vs.id = bs.seat_id
+        JOIN seat_categories sc ON sc.id = vs.category_id
+        WHERE bs.booking_id = ?
+      `).all(bookingId);
+
+      const seats = seatRows.map((s) => `Row ${s.row_num} Col ${s.col_num} (${s.category_name})`).join(', ');
+
+      try {
+        const info = await sendBookingCancellation({
+          to: bookingDetails.email,
+          name: bookingDetails.name,
+          bookingRef: booking.booking_ref,
+          eventTitle: bookingDetails.title,
+          eventDate: bookingDetails.event_date,
+          eventTime: bookingDetails.event_time,
+          seats,
+          totalAmount: bookingDetails.total_amount,
+        });
+        email = { sent: true, sentTo: info.sentTo, previewUrl: info.previewUrl || null };
+      } catch (emailErr) {
+        console.error('Cancellation email failed:', emailErr.message);
+        email = { sent: false, error: emailErr.message };
+      }
+    }
+
+    res.json({ message: 'Booking cancelled', bookingRef: booking.booking_ref, email });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

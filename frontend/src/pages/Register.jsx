@@ -5,17 +5,22 @@ import { useAuth } from '../context/AuthContext';
 export default function Register() {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'customer' });
   const [error, setError] = useState('');
+  const [emailRegistered, setEmailRegistered] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setEmailRegistered(false);
     try {
       await register(form);
       navigate('/');
     } catch (err) {
       setError(err.message);
+      if (err.data?.emailRegistered) {
+        setEmailRegistered(true);
+      }
     }
   };
 
@@ -24,6 +29,12 @@ export default function Register() {
       <div className="card">
         <h2 className="page-title">Register</h2>
         {error && <div className="alert alert-error">{error}</div>}
+        {emailRegistered && (
+          <div className="alert alert-info">
+            Already have an account? <Link to="/login">Log in</Link> or{' '}
+            <Link to={`/forgot-password?email=${encodeURIComponent(form.email)}`}>reset your password</Link>.
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Name</label>

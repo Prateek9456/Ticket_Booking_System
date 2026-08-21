@@ -58,6 +58,11 @@ a:hover { text-decoration: underline; }
   margin-bottom: 1.5rem;
 }
 
+.card-cancelled {
+  opacity: 0.85;
+  border-left: 4px solid #ef4444;
+}
+
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.35rem; font-weight: 500; font-size: 0.9rem; }
 .form-group input, .form-group select, .form-group textarea {

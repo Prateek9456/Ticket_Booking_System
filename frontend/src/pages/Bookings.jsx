@@ -45,7 +45,11 @@ export default function Bookings() {
     if (!confirm('Cancel this booking?')) return;
     try {
       const result = await api.cancelBooking(id);
-      setMessage(result.message);
+      setMessage(
+        result.email?.sent
+          ? `${result.message}. Cancellation email sent to ${result.email.sentTo}.`
+          : result.message
+      );
       load();
     } catch (err) {
       setError(err.message);
@@ -72,14 +76,23 @@ export default function Bookings() {
       {bookings.length === 0 ? (
         <p>No bookings yet.</p>
       ) : (
-        bookings.map((b) => (
-          <div key={b.id} className="card">
+        <>
+          <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+            Showing {bookings.length} booking{bookings.length !== 1 ? 's' : ''} ({bookings.filter((b) => b.status === 'confirmed').length} active, {bookings.filter((b) => b.status === 'cancelled').length} cancelled)
+          </p>
+          {bookings.map((b) => (
+          <div key={b.id} className={`card ${b.status === 'cancelled' ? 'card-cancelled' : ''}`}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
               <div>
                 <h3>{b.title}</h3>
                 <p style={{ color: '#6b7280' }}>{b.venue_name} &middot; {b.event_date} at {b.event_time}</p>
                 <p>Ref: <strong>{b.booking_ref}</strong> &middot; ${b.total_amount.toFixed(2)}</p>
                 <p>Seats: {b.seats.map((s) => `R${s.row_num}C${s.col_num} (${s.category_name})`).join(', ')}</p>
+                {b.status === 'cancelled' && (
+                  <p style={{ color: '#9ca3af', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                    This booking was cancelled. Seats have been released.
+                  </p>
+                )}
                 {qrCodes[b.id] && (
                   <img
                     src={qrCodes[b.id]}
@@ -113,7 +126,8 @@ export default function Bookings() {
               </div>
             </div>
           </div>
-        ))
+          ))}
+        </>
       )}
     </div>
   );
