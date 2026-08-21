@@ -2,26 +2,30 @@
 
 **Ticket Booking System — Prateek Vashishtha**
 
-**Repository:** [https://github.com/Prateek9456/Ticket_Booking_System](https://github.com/Prateek9456/Ticket_Booking_System)  
-**Live app:** [https://ticket-booking-system-red.vercel.app](https://ticket-booking-system-red.vercel.app)
+| Resource | URL |
+|----------|-----|
+| **Repository** | [github.com/Prateek9456/Ticket_Booking_System](https://github.com/Prateek9456/Ticket_Booking_System) |
+| **Live app** | [ticket-booking-system-red.vercel.app](https://ticket-booking-system-red.vercel.app) |
+| **Backend API** | [ticket-booking-system-pp6l.onrender.com/api](https://ticket-booking-system-pp6l.onrender.com/api) |
+| **Health check** | [ticket-booking-system-pp6l.onrender.com/api/health](https://ticket-booking-system-pp6l.onrender.com/api/health) |
 
 ---
 
 ## Overview
 
-The Ticket Booking System is a three-tier web application built with a React frontend (Vite), Express REST API, and SQLite database. It supports three roles — **admin**, **organiser**, and **customer** — with role-based access control via JWT. The system is designed to handle concurrent seat selection for movies and concerts while keeping seat state consistent, managing hold expiry automatically, running a fair waitlist with time-limited offers on cancellation, and delivering transactional emails for bookings, account actions, and admin/organiser operations.
+The Ticket Booking System is a three-tier web application built with a React frontend (Vite), Express REST API, and a relational database. It supports three roles — **admin**, **organiser**, and **customer** — with role-based access control via JWT. The system handles concurrent seat selection for movies and concerts while keeping seat state consistent, managing hold expiry automatically, running a fair waitlist with time-limited offers on cancellation, and delivering transactional emails for bookings, account actions, and admin/organiser operations.
 
-**Hosting:** Frontend on [Vercel](https://vercel.com) · Backend on [Render](https://render.com) (free tier).
+**Hosting:** Frontend on [Vercel](https://vercel.com) · Backend + PostgreSQL on [Render](https://render.com).
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────┐     HTTPS      ┌──────────────┐     REST      ┌─────────────┐
-│   React     │ ──────────────▶│   Express    │ ────────────▶ │   SQLite    │
-│   (Vercel)  │ ◀──────────────│   (Render)   │ ◀──────────── │   (file)    │
-└─────────────┘   JWT + JSON   └──────────────┘  transactions └─────────────┘
+┌─────────────┐     HTTPS      ┌──────────────┐     SQL       ┌──────────────┐
+│   React     │ ──────────────▶│   Express    │ ────────────▶ │  PostgreSQL  │
+│   (Vercel)  │ ◀──────────────│   (Render)   │ ◀──────────── │  (Render)    │
+└─────────────┘   JWT + JSON   └──────────────┘ transactions└──────────────┘
                                       │
                                       ▼
                                ┌──────────────┐
@@ -30,7 +34,9 @@ The Ticket Booking System is a three-tier web application built with a React fro
                                └──────────────┘
 ```
 
-The frontend is a single-page application. Vercel rewrites all non-API routes to `index.html`, so direct navigation and page reloads on paths like `/organiser` or `/bookings` work correctly. API calls are proxied to the Render backend via `vercel.json`.
+**Local development** uses the same Express API with a SQLite file at `backend/data/ticket_booking.db`. The database layer in `backend/src/db/database.js` selects PostgreSQL when `DATABASE_URL` is set, otherwise SQLite.
+
+The frontend is a single-page application. Vercel rewrites all non-API routes to `index.html`, so direct navigation and page reloads on paths like `/organiser` or `/bookings` work correctly. API calls are proxied to the Render backend via `frontend/vercel.json`.
 
 ---
 
@@ -39,7 +45,7 @@ The frontend is a single-page application. Vercel rewrites all non-API routes to
 All users (customers, organisers, admins) are stored in a single `users` table with a `role` column. Email addresses are unique and normalised (trimmed, lowercased) at registration and login. Display names may duplicate.
 
 - **Registration:** Self-service for customer, organiser, and admin roles. Duplicate emails return HTTP 409 with guidance to log in or reset password.
-- **Login:** JWT issued with 7-day expiry (`JWT_EXPIRES_IN`). Wrong password on a known email returns `forgotPassword: true` so the UI can offer reset.
+- **Login:** JWT issued with 30-day expiry (`JWT_EXPIRES_IN`). Wrong password on a known email returns `forgotPassword: true` so the UI can offer reset.
 - **Password reset:** 6-digit OTP emailed to the user, stored bcrypt-hashed in `email_otps` with 15-minute expiry. Works for all roles.
 - **Session persistence:** The frontend stores the JWT and user object in `localStorage`. On reload, the token is validated via `GET /auth/me`. The session is cleared only on HTTP 401, not on transient network errors.
 
@@ -67,9 +73,9 @@ When a customer confirms a booking, seats transition from `held` to `booked` onl
 
 ## Concurrency Prevention
 
-The primary concurrency challenge is two customers attempting to hold or book the same seat at the same time. The system addresses this at the database layer using SQLite transactional semantics.
+The primary concurrency challenge is two customers attempting to hold or book the same seat at the same time. The system addresses this at the database layer using transactional semantics.
 
-All seat mutations occur inside transaction blocks. The conditional UPDATE pattern is the core defence: rather than reading status and then writing (a classic read-modify-write race), the system attempts the state transition in a single atomic statement. SQLite row-level locking during writes ensures that concurrent transactions serialize on the same row.
+All seat mutations occur inside transaction blocks (`withTransaction` in `database.js`). The conditional UPDATE pattern is the core defence: rather than reading status and then writing (a classic read-modify-write race), the system attempts the state transition in a single atomic statement. Row-level locking during writes ensures that concurrent transactions serialize on the same row.
 
 For booking confirmation, the transaction books all selected seats and creates the booking record atomically. If any seat fails the `held_by` check, the entire transaction rolls back. A `version` column on `seat_status` increments on every mutation, providing an audit trail and enabling future optimistic-locking extensions.
 
@@ -117,7 +123,7 @@ Email is sent through a provider chain: **Brevo API** (preferred for production 
 | Venue created / removed | Admin |
 | Waitlist seat offer | Customer |
 
-The `GET /api/health` endpoint reports which email provider is configured and whether the connection is valid.
+The `GET /api/health` endpoint reports which email provider is configured, whether the connection is valid, and which database backend is active (`postgresql` or `sqlite`).
 
 ---
 
@@ -129,10 +135,44 @@ On successful booking, the system generates a QR code (PNG buffer) encoding the 
 
 ## Data Storage
 
-All persistent data lives in a single SQLite file at `backend/data/ticket_booking.db`. The schema is defined in `backend/src/db/schema.sql` and applied on server startup. On Render free tier, the filesystem is ephemeral — data may not survive redeploys without external persistent storage.
+| Environment | Engine | Location | Persistence |
+|-------------|--------|----------|-------------|
+| Local dev | SQLite | `backend/data/ticket_booking.db` | File on disk |
+| Production | PostgreSQL | Render managed database | Survives redeploys and restarts |
+
+The schema is defined in:
+
+- `backend/src/db/schema.sql` (SQLite)
+- `backend/src/db/schema.postgres.sql` (PostgreSQL)
+
+Tables are created on server startup via `initDb()`. The admin account and demo venue are seeded on startup via `runSeed()` in `seed-data.js` (idempotent — only inserts if missing).
+
+Production uses the **External Database URL** from Render as `DATABASE_URL`. The build step runs `npm install` only; database seeding happens at runtime when the server can reach PostgreSQL.
+
+---
+
+## Deployment Topology
+
+```
+GitHub (main)
+    │
+    ├──▶ Vercel ──▶ React SPA (ticket-booking-system-red.vercel.app)
+    │                  │
+    │                  └── /api/* proxied to Render
+    │
+    └──▶ Render ──▶ Express API (ticket-booking-system-pp6l.onrender.com)
+                       │
+                       └──▶ PostgreSQL (ticket-booking-db)
+```
+
+Environment configuration is documented in [`backend/.env.example`](../backend/.env.example) and [`frontend/.env.example`](../frontend/.env.example). The Render blueprint in [`render.yaml`](../render.yaml) provisions the API service and PostgreSQL database.
 
 ---
 
 ## Conclusion
 
-The system's correctness relies on database-level atomic operations for concurrency, cron-driven expiry for automated lifecycle management, and a FIFO waitlist with cascading time-limited offers. Authentication is stateless JWT with email-based password recovery. Transactional email covers the full user lifecycle across all three roles. The seat map model separates venue layout from per-show availability, and polling delivers responsive status updates on the frontend. Together, these design choices produce a lightweight monolith suitable for free-tier cloud hosting on Render and Vercel.
+The system's correctness relies on database-level atomic operations for concurrency, cron-driven expiry for automated lifecycle management, and a FIFO waitlist with cascading time-limited offers. Authentication is stateless JWT with email-based password recovery. Transactional email covers the full user lifecycle across all three roles. PostgreSQL on Render provides durable storage for accounts, events, and bookings in production. The seat map model separates venue layout from per-show availability, and polling delivers responsive status updates on the frontend. Together, these design choices produce a lightweight monolith suitable for free-tier cloud hosting on Render and Vercel.
+
+---
+
+**Author:** Prateek Vashishtha · [GitHub](https://github.com/Prateek9456)

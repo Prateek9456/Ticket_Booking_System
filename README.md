@@ -1,7 +1,7 @@
 # Ticket Booking System
 
-**Author:** Prateek Vashishtha  
-**Repository:** [https://github.com/Prateek9456/Ticket_Booking_System](https://github.com/Prateek9456/Ticket_Booking_System)
+**Author:** [Prateek Vashishtha](https://github.com/Prateek9456)  
+**Repository:** [github.com/Prateek9456/Ticket_Booking_System](https://github.com/Prateek9456/Ticket_Booking_System)
 
 A full-stack ticket booking platform for movies and concerts. Customers book seats from a visual map with real-time status, held seats auto-release after a configurable TTL, sold-out events support a category waitlist with automatic re-offer on cancellation, and confirmed bookings trigger a QR code ticket by email.
 
@@ -11,17 +11,19 @@ A full-stack ticket booking platform for movies and concerts. Customers book sea
 
 | Service | URL |
 |---------|-----|
-| **Frontend** | [https://ticket-booking-system-red.vercel.app](https://ticket-booking-system-red.vercel.app) |
-| **Backend API** | [https://ticket-booking-system-pp6l.onrender.com/api](https://ticket-booking-system-pp6l.onrender.com/api) |
-| **Health Check** | [https://ticket-booking-system-pp6l.onrender.com/api/health](https://ticket-booking-system-pp6l.onrender.com/api/health) |
+| **Frontend** | [ticket-booking-system-red.vercel.app](https://ticket-booking-system-red.vercel.app) |
+| **Backend API** | [ticket-booking-system-pp6l.onrender.com/api](https://ticket-booking-system-pp6l.onrender.com/api) |
+| **Health Check** | [ticket-booking-system-pp6l.onrender.com/api/health](https://ticket-booking-system-pp6l.onrender.com/api/health) |
 
-**Deployment:** Frontend on [Vercel](https://vercel.com) · Backend on [Render](https://render.com)
+**Deployment:** Frontend on [Vercel](https://vercel.com) · Backend + PostgreSQL on [Render](https://render.com)
+
+The health endpoint reports API status, database type (`postgresql` in production), and email configuration.
 
 ---
 
 ## Default Admin Account
 
-The seed script creates one admin account if none exists:
+The server seeds one admin account on first run if none exists:
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -35,7 +37,8 @@ Customers, organisers, and additional admins register through the app at [/regis
 
 | Layer | Technology |
 |-------|------------|
-| Backend | Node.js 20+, Express, SQLite (local) / PostgreSQL (production) |
+| Backend | Node.js 20+, Express |
+| Database | SQLite (local dev) · PostgreSQL (production via `DATABASE_URL`) |
 | Frontend | React 18, Vite, React Router |
 | Auth | JWT (30-day expiry) + bcrypt |
 | Email | Brevo API (production), Resend, or SMTP/Nodemailer |
@@ -76,7 +79,8 @@ Customers, organisers, and additional admins register through the app at [/regis
 
 ### System
 - Auto-release abandoned seat holds via cron scheduler
-- Concurrency-safe hold and booking using SQLite transactions
+- Concurrency-safe hold and booking using database transactions
+- Persistent storage in production (PostgreSQL on Render)
 - Waitlist auto-assignment on cancellation with cascading time-limited offers
 - SPA routing on Vercel (no 404 on page reload)
 
@@ -88,14 +92,14 @@ Customers, organisers, and additional admins register through the app at [/regis
 Ticket_Booking_System/
 ├── backend/
 │   ├── src/
-│   │   ├── db/              # Schema, database init, seed, reset-users
+│   │   ├── db/              # Schema, database layer, seed, reset-users
 │   │   ├── middleware/      # JWT authentication
 │   │   ├── routes/          # REST API endpoints
 │   │   ├── services/        # Seat hold, email, OTP, QR code
 │   │   ├── schedulers/      # Cron jobs for expiry
 │   │   ├── config.js        # JWT settings
 │   │   └── server.js
-│   ├── data/                # SQLite database (gitignored, created at runtime)
+│   ├── data/                # SQLite database (local only, gitignored)
 │   ├── .env.example
 │   └── package.json
 ├── frontend/
@@ -107,8 +111,9 @@ Ticket_Booking_System/
 │   ├── vercel.json          # API proxy + SPA rewrites
 │   └── package.json
 ├── docs/
-│   └── SYSTEM_DESIGN.md       # System design write-up
-├── render.yaml                # Render deployment blueprint
+│   └── SYSTEM_DESIGN.md     # System design write-up
+├── render.yaml              # Render deployment blueprint
+├── LICENSE
 └── README.md
 ```
 
@@ -132,11 +137,16 @@ Edit `.env` with your `JWT_SECRET` and email credentials, then:
 
 ```bash
 npm install
-npm run seed
 npm start
 ```
 
-API runs at `http://localhost:3001`
+API runs at `http://localhost:3001`. The server creates the SQLite schema and seeds the admin account + demo venue on startup.
+
+To seed manually without starting the server:
+
+```bash
+npm run seed
+```
 
 ### 2. Frontend
 
@@ -154,7 +164,9 @@ The Vite dev server proxies `/api` requests to `http://localhost:3001`.
 
 | Command | Description |
 |---------|-------------|
-| `npm run seed` | Create schema, seed admin account and demo venue |
+| `npm start` | Start API (init DB + seed on startup) |
+| `npm run dev` | Start API with file watch |
+| `npm run seed` | Create schema and seed admin + demo venue |
 | `npm run reset-users` | Clear all users, bookings, events; re-seed admin only |
 
 ---
@@ -166,6 +178,7 @@ The Vite dev server proxies `/api` requests to `http://localhost:3001`.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | API server port | `3001` |
+| `DATABASE_URL` | PostgreSQL connection string (production only; unset = SQLite locally) | — |
 | `JWT_SECRET` | Secret for JWT signing | *(required in production)* |
 | `JWT_EXPIRES_IN` | Token lifetime | `30d` |
 | `SEAT_HOLD_TTL_MINUTES` | Seat hold duration in minutes | `10` |
@@ -231,10 +244,10 @@ Render free tier blocks SMTP. Use Brevo on Render instead.
 
 | Variable | Value |
 |----------|--------|
+| `DATABASE_URL` | External PostgreSQL URL from Render (see [Deployment](#deployment)) |
 | `FRONTEND_URL` | `https://ticket-booking-system-red.vercel.app` |
 | `JWT_SECRET` | A long random secret string |
 | `JWT_EXPIRES_IN` | `30d` |
-| `DATABASE_URL` | PostgreSQL connection string (auto-set on Render) |
 | `SEAT_HOLD_TTL_MINUTES` | `10` |
 | `WAITLIST_OFFER_TTL_MINUTES` | `15` |
 | `BREVO_API_KEY` | Brevo API key (recommended) |
@@ -313,6 +326,12 @@ Render free tier blocks SMTP. Use Brevo on Render instead.
 | GET | `/organiser/events/:id/summary` | Booking summary | Organiser |
 | DELETE | `/organiser/events/:id` | Delete event | Organiser |
 
+### Health
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | API status, database type, email config |
+
 ---
 
 ## Database
@@ -321,16 +340,10 @@ Render free tier blocks SMTP. Use Brevo on Render instead.
 
 | Environment | Database | Persistence |
 |-------------|----------|-------------|
-| **Local dev** | SQLite file at `backend/data/ticket_booking.db` | Survives restarts on your machine |
-| **Production (Render)** | PostgreSQL via `DATABASE_URL` | Persistent — accounts, events, and bookings survive redeploys and long gaps between visits |
+| **Local dev** | SQLite at `backend/data/ticket_booking.db` | Survives restarts on your machine |
+| **Production (Render)** | PostgreSQL via `DATABASE_URL` | Persistent across redeploys and long gaps between visits |
 
-Locally, data is stored in a single SQLite file:
-
-```
-backend/data/ticket_booking.db
-```
-
-The file is created on first run and is **gitignored**. On Render, the app uses a **PostgreSQL** database (configured in `render.yaml`) so data is no longer lost when the server restarts or redeploys.
+The app selects the database automatically: if `DATABASE_URL` is set, it uses PostgreSQL; otherwise it uses SQLite.
 
 ### Schema
 
@@ -348,13 +361,24 @@ The file is created on first run and is **gitignored**. On Render, the app uses 
 | `waitlist` | id, event_id, category_id, user_id, position, status, offer_token, offer_expires_at |
 | `email_otps` | id, email, otp_hash, purpose, expires_at, used_at |
 
-Full SQL definition: [`backend/src/db/schema.sql`](backend/src/db/schema.sql)
+Full SQL definitions:
 
-### Inspecting the database locally
+- SQLite: [`backend/src/db/schema.sql`](backend/src/db/schema.sql)
+- PostgreSQL: [`backend/src/db/schema.postgres.sql`](backend/src/db/schema.postgres.sql)
 
-1. Run the backend or `npm run seed` to create `backend/data/ticket_booking.db`.
-2. Open the file with [DB Browser for SQLite](https://sqlitebrowser.org/) or the **SQLite Viewer** extension in VS Code.
-3. Example queries:
+### Inspecting the database
+
+**Locally (SQLite):**
+
+1. Run `npm start` or `npm run seed` to create `backend/data/ticket_booking.db`.
+2. Open with [DB Browser for SQLite](https://sqlitebrowser.org/).
+
+**Production (PostgreSQL on Render):**
+
+1. Open your PostgreSQL instance in the [Render dashboard](https://dashboard.render.com).
+2. Use the **Connect** tab or **PSQL** shell to run queries.
+
+Example queries:
 
 ```sql
 SELECT id, email, name, role FROM users;
@@ -375,7 +399,7 @@ SELECT booking_ref, status, total_amount FROM bookings;
 
 ### Concurrency Prevention
 
-- Each hold and booking runs inside a SQLite transaction with a conditional `UPDATE ... WHERE status = 'available'` (or `'held' AND held_by = user`).
+- Each hold and booking runs inside a database transaction with a conditional `UPDATE ... WHERE status = 'available'` (or `'held' AND held_by = user`).
 - If `changes === 0`, the operation fails — only one customer can hold or book a seat.
 - A `version` column on `seat_status` tracks mutations for audit and optimistic locking.
 
@@ -396,13 +420,17 @@ For the full system design write-up, see [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_D
 ### Backend — Render
 
 1. Create a **Web Service** with root directory `backend`.
-2. Create a **PostgreSQL** database (free tier) and link it via `DATABASE_URL`.
-3. **Instance type:** Free
+2. Create a **PostgreSQL** database on Render (free tier).
+3. Connect the database to your web service (or set `DATABASE_URL` manually).
 4. **Build command:** `npm install`
-5. **Start command:** `npm start` (seeds admin + demo venue on first run)
+5. **Start command:** `npm start`
 6. Set environment variables from the table above.
 
-Alternatively, use the included [`render.yaml`](render.yaml) blueprint — it provisions both the API and a PostgreSQL database automatically.
+**Important:** Use the **External Database URL** for `DATABASE_URL` if the internal hostname fails to resolve. The web service and database must be in the **same region**.
+
+Alternatively, use the included [`render.yaml`](render.yaml) blueprint — it provisions both the API and a PostgreSQL database.
+
+The server seeds the admin account and demo venue on startup (not during build).
 
 ### Frontend — Vercel
 
@@ -418,26 +446,43 @@ Alternatively, use the included [`render.yaml`](render.yaml) blueprint — it pr
 
 | Deliverable | Location |
 |-------------|----------|
-| Source code | This repository (`main` branch) |
+| Source code | [github.com/Prateek9456/Ticket_Booking_System](https://github.com/Prateek9456/Ticket_Booking_System) (`main` branch) |
 | README (setup, env, API, DB, logic) | [`README.md`](README.md) |
 | System design write-up | [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_DESIGN.md) |
 | Hosted frontend | [ticket-booking-system-red.vercel.app](https://ticket-booking-system-red.vercel.app) |
 | Hosted backend | [ticket-booking-system-pp6l.onrender.com](https://ticket-booking-system-pp6l.onrender.com) |
+| Health check | [ticket-booking-system-pp6l.onrender.com/api/health](https://ticket-booking-system-pp6l.onrender.com/api/health) |
 | Environment templates | [`backend/.env.example`](backend/.env.example), [`frontend/.env.example`](frontend/.env.example) |
+| Deployment blueprint | [`render.yaml`](render.yaml) |
+| License | [`LICENSE`](LICENSE) |
 
-**Excluded from the repository:** `node_modules/`, `.env`, `dist/`, `*.db`, editor-specific config.
+**Excluded from the repository:** `node_modules/`, `.env`, `dist/`, `*.db`, database files.
 
 ### Creating a Zip Archive (if required)
 
 ```powershell
 # Windows PowerShell — run from parent folder of Ticket_Booking_System
-Compress-Archive -Path Ticket_Booking_System\backend, Ticket_Booking_System\frontend, Ticket_Booking_System\docs, Ticket_Booking_System\README.md, Ticket_Booking_System\render.yaml, Ticket_Booking_System\.gitignore -DestinationPath Ticket_Booking_System.zip -Force
+Compress-Archive -Path Ticket_Booking_System\backend, Ticket_Booking_System\frontend, Ticket_Booking_System\docs, Ticket_Booking_System\README.md, Ticket_Booking_System\LICENSE, Ticket_Booking_System\render.yaml, Ticket_Booking_System\.gitignore -DestinationPath Ticket_Booking_System.zip -Force
 ```
 
 Ensure the zip does **not** contain `node_modules/`, `.env`, `dist/`, or `*.db` files.
 
 ---
 
+## Links
+
+| Resource | URL |
+|----------|-----|
+| GitHub Repository | [github.com/Prateek9456/Ticket_Booking_System](https://github.com/Prateek9456/Ticket_Booking_System) |
+| Live Frontend | [ticket-booking-system-red.vercel.app](https://ticket-booking-system-red.vercel.app) |
+| Live Backend API | [ticket-booking-system-pp6l.onrender.com/api](https://ticket-booking-system-pp6l.onrender.com/api) |
+| API Health Check | [ticket-booking-system-pp6l.onrender.com/api/health](https://ticket-booking-system-pp6l.onrender.com/api/health) |
+| System Design Doc | [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_DESIGN.md) |
+| Render Dashboard | [dashboard.render.com](https://dashboard.render.com) |
+| Vercel Dashboard | [vercel.com/dashboard](https://vercel.com/dashboard) |
+
+---
+
 ## License
 
-MIT — see [LICENSE](LICENSE) (if included) or use as specified by your course/assignment.
+MIT — see [LICENSE](LICENSE).

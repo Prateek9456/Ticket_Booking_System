@@ -2,6 +2,13 @@
   "name": "ticket-booking-frontend",
   "version": "1.0.0",
   "private": true,
+  "description": "Ticket Booking System frontend",
+  "author": "Prateek Vashishtha <prateekvashishtha6@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Prateek9456/Ticket_Booking_System.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

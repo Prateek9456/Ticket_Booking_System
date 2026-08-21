@@ -2,6 +2,12 @@
   "name": "ticket-booking-backend",
   "version": "1.0.0",
   "description": "Ticket Booking System API",
+  "author": "Prateek Vashishtha <prateekvashishtha6@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Prateek9456/Ticket_Booking_System.git"
+  },
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
