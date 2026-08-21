@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { initDb } = require('./db/database');
 const { startSchedulers } = require('./schedulers/expiry');
-const { isEmailConfigured, isResendConfigured, isSmtpConfigured, getResendFromAddress, verifyEmailConnection } = require('./services/email');
+const { isEmailConfigured, isBrevoConfigured, isResendConfigured, isSmtpConfigured, getResendFromAddress, verifyEmailConnection } = require('./services/email');
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -28,16 +28,18 @@ app.get('/api/health', async (_req, res) => {
     emailConfigured: isEmailConfigured(),
     emailProvider: email.provider || null,
     emailFrom: email.from || (isResendConfigured() ? getResendFromAddress() : null),
+    brevoConfigured: isBrevoConfigured(),
     resendConfigured: isResendConfigured(),
     smtpConfigured: isSmtpConfigured(),
     smtpHost: process.env.SMTP_HOST || null,
     emailVerified: email.ok,
     emailError: email.error || null,
-    renderSmtpBlockedHint: isSmtpConfigured() && !isResendConfigured()
-      ? 'Render free tier blocks SMTP ports 587/465. Use RESEND_API_KEY or upgrade Render.'
+    emailHint: email.hint || null,
+    renderSmtpBlockedHint: isSmtpConfigured() && !isBrevoConfigured() && !isResendConfigured()
+      ? 'Render free tier blocks SMTP ports 587/465. Use BREVO_API_KEY instead.'
       : null,
-    resendHint: isResendConfigured()
-      ? 'With onboarding@resend.dev, emails only deliver to the address you used on resend.com. Register in the app with that same email.'
+    resendHint: isResendConfigured() && !isBrevoConfigured()
+      ? 'Resend test mode (onboarding@resend.dev) only delivers to your resend.com signup email. Use Brevo for any recipient.'
       : null,
   });
 });

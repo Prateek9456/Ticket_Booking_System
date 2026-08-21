@@ -17,10 +17,14 @@ services:
         value: "10"
       - key: WAITLIST_OFFER_TTL_MINUTES
         value: "15"
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_FROM_EMAIL
+        sync: false
+      - key: BREVO_FROM_NAME
+        value: "Ticket Booking"
       - key: RESEND_API_KEY
         sync: false
-      - key: RESEND_FROM
-        value: "Ticket Booking <onboarding@resend.dev>"
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

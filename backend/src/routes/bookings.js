@@ -69,7 +69,7 @@ router.post('/confirm', authenticate, async (req, res) => {
     } else {
       email = {
         sent: false,
-        error: 'Email is not configured on the server. Add RESEND_API_KEY or SMTP environment variables on Render.',
+        error: 'Email is not configured on the server. Set BREVO_API_KEY and BREVO_FROM_EMAIL on Render, then redeploy.',
         sentTo: userEmail,
       };
     }

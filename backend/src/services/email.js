@@ -3,7 +3,11 @@ const nodemailer = require('nodemailer');
 let transporter = null;
 
 const RENDER_SMTP_BLOCK_HINT =
-  'Render free tier blocks outbound SMTP (ports 587/465). Use Resend (RESEND_API_KEY) or upgrade Render to a paid plan.';
+  'Render free tier blocks outbound SMTP (ports 587/465). Use Brevo API (BREVO_API_KEY) or Resend instead.';
+
+function isBrevoConfigured() {
+  return Boolean(process.env.BREVO_API_KEY?.trim() && process.env.BREVO_FROM_EMAIL?.trim());
+}
 
 function isResendConfigured() {
   return Boolean(process.env.RESEND_API_KEY?.trim());
@@ -14,7 +18,14 @@ function isSmtpConfigured() {
 }
 
 function isEmailConfigured() {
-  return isResendConfigured() || isSmtpConfigured();
+  return isBrevoConfigured() || isResendConfigured() || isSmtpConfigured();
+}
+
+function getBrevoSender() {
+  return {
+    email: process.env.BREVO_FROM_EMAIL.trim(),
+    name: process.env.BREVO_FROM_NAME?.trim() || 'Ticket Booking',
+  };
 }
 
 function getResendFromAddress() {
@@ -39,7 +50,7 @@ function wrapResendError(message, to) {
   if (lower.includes('only send testing emails to your own email')) {
     return new Error(
       `Resend test mode only delivers to the email you signed up with on resend.com (not ${to}). ` +
-      'Register in the app with that same email, or verify a custom domain on Resend.'
+      'Use Brevo instead (free, no domain): set BREVO_API_KEY and BREVO_FROM_EMAIL in your server env.'
     );
   }
 
@@ -105,6 +116,58 @@ function wrapSmtpError(err) {
   return err;
 }
 
+async function sendViaBrevo({ to, subject, html, attachments = [] }) {
+  const sender = getBrevoSender();
+  const body = {
+    sender,
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+  };
+
+  if (attachments.length) {
+    body.attachment = attachments.map((attachment) => ({
+      name: attachment.filename,
+      content: Buffer.isBuffer(attachment.content)
+        ? attachment.content.toString('base64')
+        : Buffer.from(attachment.content).toString('base64'),
+    }));
+  }
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': process.env.BREVO_API_KEY.trim(),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = result.message || JSON.stringify(result);
+    const lower = message.toLowerCase();
+    if (lower.includes('sender') || lower.includes('not valid') || lower.includes('verified')) {
+      throw new Error(
+        `Brevo rejected the sender "${sender.email}". Verify this email in Brevo: ` +
+        'Senders & IP → Senders → add your email and click the verification link. ' +
+        `Details: ${message}`
+      );
+    }
+    throw new Error(`Brevo API error: ${message}`);
+  }
+
+  return {
+    messageId: result.messageId || null,
+    previewUrl: null,
+    sentTo: to,
+    accepted: [to],
+    provider: 'brevo',
+    from: `${sender.name} <${sender.email}>`,
+  };
+}
+
 async function sendViaResend({ to, subject, html, attachments = [] }) {
   const { Resend } = require('resend');
   const resend = new Resend(process.env.RESEND_API_KEY.trim());
@@ -159,16 +222,31 @@ async function sendViaSmtp({ to, subject, html, attachments = [] }) {
 }
 
 async function sendEmail(payload) {
+  if (isBrevoConfigured()) {
+    return sendViaBrevo(payload);
+  }
   if (isResendConfigured()) {
     return sendViaResend(payload);
   }
   if (isSmtpConfigured()) {
     return sendViaSmtp(payload);
   }
-  throw new Error('Email is not configured. Set RESEND_API_KEY or SMTP credentials on the server.');
+  throw new Error(
+    'Email is not configured. For free delivery to any user (no domain), set BREVO_API_KEY and BREVO_FROM_EMAIL.'
+  );
 }
 
 async function verifyEmailConnection() {
+  if (isBrevoConfigured()) {
+    const sender = getBrevoSender();
+    return {
+      ok: true,
+      provider: 'brevo',
+      from: `${sender.name} <${sender.email}>`,
+      hint: 'Brevo sends to any recipient once your sender email is verified in the Brevo dashboard.',
+    };
+  }
+
   if (isResendConfigured()) {
     return {
       ok: true,
@@ -269,10 +347,12 @@ async function sendBookingCancellation({ to, name, bookingRef, eventTitle, event
 }
 
 module.exports = {
+  isBrevoConfigured,
   isResendConfigured,
   isSmtpConfigured,
   isEmailConfigured,
   getResendFromAddress,
+  getBrevoSender,
   verifyEmailConnection,
   verifySmtpConnection: verifyEmailConnection,
   sendBookingConfirmation,

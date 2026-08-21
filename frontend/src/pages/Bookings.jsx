@@ -65,9 +65,9 @@ export default function Bookings() {
         </p>
       )}
       {isDemoEmail && (
-        <div className="alert alert-error">
-          You are logged in with a demo email ({user.email}). Resend cannot deliver to fake addresses.
-          Register a new account with the same email you used on resend.com.
+        <div className="alert alert-info">
+          Demo accounts use fake @demo.com addresses — emails cannot be delivered there.
+          Register with your real email to receive booking confirmations.
         </div>
       )}
       {error && <div className="alert alert-error">{error}</div>}

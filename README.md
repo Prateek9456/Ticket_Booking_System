@@ -150,40 +150,49 @@ The Vite dev server proxies `/api` requests to `http://localhost:3001`.
 | `SEAT_HOLD_TTL_MINUTES`    | Seat hold duration in minutes       | `10`                   |
 | `WAITLIST_OFFER_TTL_MINUTES` | Waitlist offer duration in minutes | `15`                   |
 | `FRONTEND_URL`             | Frontend URL for waitlist links     | `http://localhost:5173`|
-| `RESEND_API_KEY`           | Resend API key (HTTPS, works on Render free) | — |
+| `BREVO_API_KEY`            | Brevo API key (free, no domain, any recipient) | — |
+| `BREVO_FROM_EMAIL`         | Verified sender email in Brevo        | —                      |
+| `BREVO_FROM_NAME`          | Sender display name                 | `Ticket Booking`       |
+| `RESEND_API_KEY`           | Resend API key (test mode: your email only) | — |
 | `RESEND_FROM`              | Sender for Resend                   | `Ticket Booking <onboarding@resend.dev>` |
-| `SMTP_HOST`                | SMTP server host (local / paid Render only) | Ethereal test SMTP |
+| `SMTP_HOST`                | SMTP server host (local dev only on Render free) | — |
 | `SMTP_PORT`                | SMTP port                           | `587`                  |
 | `SMTP_USER`                | SMTP username                       | —                      |
 | `SMTP_PASS`                | SMTP password                       | —                      |
 | `SMTP_FROM`                | Sender address (SMTP)               | —                      |
 
-**Important:** Render **free tier blocks outbound SMTP** (ports 587/465). Ethereal and Gmail SMTP will time out on Render free — use **Resend** instead, or upgrade Render to a paid plan.
-
-For local testing with Ethereal, create a free account at [Ethereal Email](https://ethereal.email) and paste credentials into `.env`. Ethereal does not deliver to real inboxes — after booking, use the preview link shown on screen.
+**Important:** Render **free tier blocks outbound SMTP**. Use **Brevo API** (free, no domain) for production. Resend test mode only delivers to your own email.
 
 ### Email setup on Render (required for live emails)
 
-#### Option A — Resend (recommended on Render free tier)
+#### Option A — Brevo (recommended: free, no domain, any recipient)
 
-1. Sign up at [Resend](https://resend.com) and create an API key.
-2. For testing without a custom domain, use `onboarding@resend.dev` as the sender (delivers only to the email you signed up with).
-3. Add on Render:
+Resend test mode only sends to **your** signup email. Brevo is free (300 emails/day), needs **no custom domain**, and delivers to **any** registered user.
+
+1. Sign up at [Brevo](https://www.brevo.com) (free, no credit card).
+2. Go to **Senders & IP → Senders** → add your Gmail or personal email → click the verification link Brevo sends you.
+3. Go to **SMTP & API → API Keys** → create an API key.
+4. On Render, set these environment variables (remove `RESEND_API_KEY` if you were using Resend test mode):
 
 | Variable | Value |
 |----------|--------|
-| `RESEND_API_KEY` | your Resend API key (`re_...`) |
-| `RESEND_FROM` | `Ticket Booking <onboarding@resend.dev>` |
+| `BREVO_API_KEY` | your Brevo API key (`xkeysib-...`) |
+| `BREVO_FROM_EMAIL` | the same email you verified in Brevo (e.g. `you@gmail.com`) |
+| `BREVO_FROM_NAME` | `Ticket Booking` |
 
-Register / log in with your **real email** so booking confirmations arrive in your inbox.
+5. Redeploy. Any user who registers with a real email will receive booking, cancellation, and password-reset emails.
 
-#### Option B — Gmail SMTP (paid Render plan only)
+#### Option B — Resend (test mode only — not for real users)
 
-Render free tier blocks SMTP. Upgrade to a paid Render instance, then:
+Without a paid custom domain, `onboarding@resend.dev` only delivers to the email you used on resend.com. **Not suitable** if other people will register and use the app.
 
-1. Enable 2-Step Verification on your Google account.
+#### Option C — Gmail SMTP (local development only)
+
+Works on your machine, but Render **free tier blocks SMTP**. Use Brevo on Render instead.
+
+1. Enable 2-Step Verification on Google.
 2. Create an **App Password** at [Google App Passwords](https://myaccount.google.com/apppasswords).
-3. Add on Render:
+3. In `backend/.env`:
 
 | Variable | Value |
 |----------|--------|
@@ -192,21 +201,6 @@ Render free tier blocks SMTP. Upgrade to a paid Render instance, then:
 | `SMTP_USER` | your Gmail address |
 | `SMTP_PASS` | 16-character app password |
 | `SMTP_FROM` | `Ticket Booking <your@gmail.com>` |
-
-#### Option C — Brevo SMTP (paid Render plan only)
-
-1. Sign up at [Brevo](https://www.brevo.com) and create an SMTP key.
-2. Add on Render:
-
-| Variable | Value |
-|----------|--------|
-| `SMTP_HOST` | `smtp-relay.brevo.com` |
-| `SMTP_PORT` | `587` |
-| `SMTP_USER` | your Brevo login email |
-| `SMTP_PASS` | your Brevo SMTP key |
-| `SMTP_FROM` | `Ticket Booking <your@email.com>` |
-
-After saving, Render redeploys. Book a ticket again — you should receive the email with QR attachment. The QR is also shown on screen after booking as a fallback.
 
 ### Frontend (production on Vercel)
 
@@ -222,9 +216,10 @@ After saving, Render redeploys. Book a ticket again — you should receive the e
 | `JWT_SECRET`    | A long random secret string |
 | `SEAT_HOLD_TTL_MINUTES` | `10` |
 | `WAITLIST_OFFER_TTL_MINUTES` | `15` |
-| `RESEND_API_KEY` | Resend API key (recommended on free tier) |
-| `RESEND_FROM` | `Ticket Booking <onboarding@resend.dev>` |
-| SMTP variables  | Local dev / paid Render only (not Ethereal on free tier) |
+| `BREVO_API_KEY` | Brevo API key (recommended — free, any recipient) |
+| `BREVO_FROM_EMAIL` | Your verified Brevo sender email |
+| `BREVO_FROM_NAME` | `Ticket Booking` |
+| `RESEND_API_KEY` | Optional; test mode only sends to your email |
 
 ---
 
