@@ -30,7 +30,7 @@ export default function Bookings() {
       const result = await api.resendBookingEmail(id);
       if (result.previewUrl) {
         setEmailLinks((prev) => ({ ...prev, [id]: result.previewUrl }));
-        setMessage(`Test email captured for ${result.sentTo}. Open the Ethereal link below.`);
+        setMessage(`Email preview captured for ${result.sentTo}. Open the preview link below.`);
       } else {
         setMessage(`Email sent to ${result.sentTo}. Check your inbox (and spam folder).`);
       }
@@ -38,8 +38,6 @@ export default function Bookings() {
       setError(err.message);
     }
   }
-
-  const isDemoEmail = user?.email?.endsWith('@demo.com');
 
   async function handleCancel(id) {
     if (!confirm('Cancel this booking?')) return;
@@ -63,12 +61,6 @@ export default function Bookings() {
         <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
           Booking emails are sent to <strong>{user.email}</strong>
         </p>
-      )}
-      {isDemoEmail && (
-        <div className="alert alert-info">
-          Demo accounts use fake @demo.com addresses — emails cannot be delivered there.
-          Register with your real email to receive booking confirmations.
-        </div>
       )}
       {error && <div className="alert alert-error">{error}</div>}
       {message && <div className="alert alert-success">{message}</div>}
@@ -103,7 +95,7 @@ export default function Bookings() {
                 {emailLinks[b.id] && (
                   <p style={{ marginTop: '0.75rem' }}>
                     <a href={emailLinks[b.id]} target="_blank" rel="noreferrer">
-                      View email in Ethereal mailbox
+                      View email preview
                     </a>
                   </p>
                 )}

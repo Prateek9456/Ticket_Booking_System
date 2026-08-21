@@ -137,9 +137,9 @@ export default function EventDetail() {
           )}
           {bookingResult.email?.sent && bookingResult.email?.previewUrl && (
             <p>
-              Test SMTP captured the email (Ethereal does not deliver to real inboxes).{' '}
+              Email preview available (dev SMTP test inbox).{' '}
               <a href={bookingResult.email.previewUrl} target="_blank" rel="noreferrer">
-                View test email and QR
+                View email preview and QR
               </a>
             </p>
           )}

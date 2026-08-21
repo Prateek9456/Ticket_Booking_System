@@ -12,6 +12,7 @@ out/
 .DS_Store
 .vscode/
 .idea/
+.cursor/
 *.log
 coverage/
 backend/data/
