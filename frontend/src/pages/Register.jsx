@@ -15,7 +15,8 @@ export default function Register() {
     setEmailRegistered(false);
     try {
       const user = await register(form);
-      if (user.role === 'organiser') navigate('/organiser');
+      if (user.role === 'admin') navigate('/admin');
+      else if (user.role === 'organiser') navigate('/organiser');
       else navigate('/');
     } catch (err) {
       setError(err.message);
@@ -54,6 +55,7 @@ export default function Register() {
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
               <option value="customer">Customer</option>
               <option value="organiser">Organiser</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Register</button>

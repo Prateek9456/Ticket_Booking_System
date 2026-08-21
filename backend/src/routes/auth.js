@@ -25,7 +25,8 @@ router.post('/register', (req, res) => {
   }
 
   const normalizedEmail = normalizeEmail(email);
-  const allowedRole = role === 'organiser' ? 'organiser' : 'customer';
+  const allowedRoles = ['admin', 'organiser', 'customer'];
+  const allowedRole = allowedRoles.includes(role) ? role : 'customer';
   const db = getDb();
 
   const existing = db.prepare('SELECT id, role FROM users WHERE email = ?').get(normalizedEmail);

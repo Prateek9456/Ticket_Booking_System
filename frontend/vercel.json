@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://ticket-booking-system-pp6l.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
