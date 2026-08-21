@@ -64,12 +64,13 @@ router.post('/confirm', authenticate, async (req, res) => {
         };
       } catch (emailErr) {
         console.error('Email send failed:', emailErr.message);
-        email = { sent: false, error: emailErr.message };
+        email = { sent: false, error: emailErr.message, sentTo: userEmail };
       }
     } else {
       email = {
         sent: false,
         error: 'SMTP is not configured on the server. Add SMTP environment variables on Render.',
+        sentTo: userEmail,
       };
     }
 
@@ -108,6 +109,68 @@ router.get('/my', authenticate, (req, res) => {
   }));
 
   res.json(result);
+});
+
+router.get('/:id/qr', authenticate, async (req, res) => {
+  const booking = getDb().prepare(`
+    SELECT booking_ref FROM bookings WHERE id = ? AND user_id = ? AND status = 'confirmed'
+  `).get(Number(req.params.id), req.user.id);
+
+  if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+  const qrBuffer = await generateBookingQR(booking.booking_ref);
+  res.json({
+    bookingRef: booking.booking_ref,
+    qrCode: `data:image/png;base64,${qrBuffer.toString('base64')}`,
+  });
+});
+
+router.post('/:id/resend-email', authenticate, async (req, res) => {
+  const db = getDb();
+  const booking = db.prepare(`
+    SELECT b.*, e.title, e.event_date, e.event_time, u.email, u.name
+    FROM bookings b
+    JOIN events e ON e.id = b.event_id
+    JOIN users u ON u.id = b.user_id
+    WHERE b.id = ? AND b.user_id = ? AND b.status = 'confirmed'
+  `).get(Number(req.params.id), req.user.id);
+
+  if (!booking) return res.status(404).json({ error: 'Booking not found' });
+  if (!isSmtpConfigured()) {
+    return res.status(503).json({ error: 'SMTP is not configured on the server.' });
+  }
+
+  const seatRows = db.prepare(`
+    SELECT vs.row_num, vs.col_num, sc.name as category_name
+    FROM booking_seats bs
+    JOIN venue_seats vs ON vs.id = bs.seat_id
+    JOIN seat_categories sc ON sc.id = vs.category_id
+    WHERE bs.booking_id = ?
+  `).all(booking.id);
+
+  const seats = seatRows.map((s) => `Row ${s.row_num} Col ${s.col_num} (${s.category_name})`).join(', ');
+  const qrBuffer = await generateBookingQR(booking.booking_ref);
+
+  try {
+    const info = await sendBookingConfirmation({
+      to: booking.email,
+      name: booking.name,
+      bookingRef: booking.booking_ref,
+      eventTitle: booking.title,
+      eventDate: booking.event_date,
+      eventTime: booking.event_time,
+      seats,
+      qrBuffer,
+    });
+
+    res.json({
+      message: 'Email sent',
+      sentTo: booking.email,
+      previewUrl: info.previewUrl || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/:id/cancel', authenticate, async (req, res) => {

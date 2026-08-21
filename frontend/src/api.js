@@ -35,6 +35,8 @@ export const api = {
   confirmBooking: (eventId, seatIds) =>
     request('/bookings/confirm', { method: 'POST', body: JSON.stringify({ eventId, seatIds }) }),
   getMyBookings: () => request('/bookings/my'),
+  getBookingQr: (id) => request(`/bookings/${id}/qr`),
+  resendBookingEmail: (id) => request(`/bookings/${id}/resend-email`, { method: 'POST' }),
   cancelBooking: (id) => request(`/bookings/${id}/cancel`, { method: 'POST' }),
 
   joinWaitlist: (eventId, categoryId) =>
